@@ -1,53 +1,109 @@
 
+进行模块化封装，对外提供下载、暂停、通知进度等
 
 ## 下载管理器
 
 UniDownloadManager : IDisposable
-    根据下载配置，下载任务调度器、下载任务处理者
-    
+    是对外API接口
+    包含接口有：
+        void 初始化Manager(serverBase, maxParallel) //maxParallel会根据设备性能分级二次优化
+        uuid 添加下载文件(url, finish<bool>)               //url暂定是相对路径
+        bool 暂停/取消任务(uuid)
+        bool 取消全部任务()
+        void Dispose()
+        EventHandler DownloadComplete
+        EventHandler DownloadProcess
 
 ## 下载数据事件参数
 
 UniDownloadDataEventArgs : EventArgs
+    下载数据事件通知，暂定
+    UniFileDownloader
 
 ## 下载调度器
 
-UniDownloadTaskScheduler : IDownloadTaskScheduler
+UniDownloaderScheduler : IDownloaderScheduler
+    文件下载调度器，暴露给UniDownloadManager。控制文件下载并发、添加移除、开始暂停恢复、事件通知
+    包含接口有：
+        void 初始化(maxParallel, protocol, [worker])
+        uuid 添加下载文件(url, finish<bool>)
+        bool 暂停/取消任务(uuid)
+        bool 取消全部任务()
+        事件通知
 
-//任务处理者
-UniDownloadTaskWorker : IDownloadTaskWorker
+
+UniDownloadAgent : IDownloaderAgent
+    任务处理器，文件下载实际操作
+    包含接口有：
+        处理分段
+
+
+## 下载文件
+
+UniFileDownloader : IDisposable
+    下载文件的包装类，管理文件下载地址、保存地址、文件md5、文件分段、控制Task下载与暂停、事件
+    包含接口有：
+        文件分段task管理器
+        下载状态
+        static Create()
+        int GetUUID()
+        bool 开始任务()
+        bool 暂停/取消任务()
+        bool 取消全部任务()
+
+
+
+UniDownloadState
+    下载状态：
+        Prepare
+        Downloading
+        PostDownloading
+        Paused
+        Cancelled
+        Completed
+        Failed
+        
+
+UniDownloadSpeedTracker : IDownloadSpeedTracker
+    下载速度报告
 
 ## 下载任务
 
-UniDownloadTask : IDisposable
+UniDownloadTask : IDownloadTask
+    绑定task，开始、暂定、取消
 
-UniDownloadState
 
-UniDownloadSpeedTracker : IDownloadSpeedTracker
-
-## 下载线程
-
-UniDownloadThread : IDownloadThread
-
-UniDownloadThreadManager : IDownloadThreadManager
-
+UniDownloadTaskManager : IDownloadTaskManager
+    管理IDownloadTask，暴露给UniFileDownloader
 
 ## 工厂类
 
-UniDownloadThreadManagerFactory : IDownloadThreadManagerFactory
-UniDownloadThreadFactory : IDownloadThreadFactory
+UniDownloadTaskManagerFactory : IDownloadTaskManagerFactory
+    创建IDownloadTaskManager
+
+UniDownloadTaskFactory : IDownloadTaskFactory
+    创建IDownloadTask
+
 UniDownloadServiceFactory : IDownloadServiceFactory
+    创建IDownloadService
 
 ## 协议类
+    IDownloadContext
+        md5、保存路径、分段数据
+    IDownloadService
+        主要是网络交互接口，比如获取remote length、标头分段、response Stream等等
+    IDownloader
+        主要是处理RemoteStream保存到本地
+
 
 Http
     UniHttpDownloadContext : IDownloadContext
     UniHttpDownloadService : IDownloadService
-    UniHttpFileDownloader : IFileDownloader
+    UniHttpDownloader : IDownloader
 Socket
     UniSocketDownloadContext : IDownloadContext
     UniSocketDownloadService : IDownloadService
-    UniSocketFileDownloader : IFileDownloader
+    UniSocketDownloader : IDownloader
 
 ## 异常类
 
@@ -61,4 +117,3 @@ UniDownloadContextInvaildException : Exception
 UniDownloadLogger
 
 UniDownloadLogging : IDownloadLogging
-
