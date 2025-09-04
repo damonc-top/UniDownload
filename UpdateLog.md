@@ -32,7 +32,7 @@ UniDownloaderScheduler : IDownloaderScheduler
         事件通知
 
 
-UniDownloadAgent : IDownloaderAgent
+UniDownloadWoker : IDownloadWoker
     任务处理器，文件下载实际操作
     包含接口有：
         处理分段
@@ -40,7 +40,7 @@ UniDownloadAgent : IDownloaderAgent
 
 ## 下载文件
 
-UniFileDownloader : IDisposable
+UniFileDownloaTask : IDisposable
     下载文件的包装类，管理文件下载地址、保存地址、文件md5、文件分段、控制Task下载与暂停、事件
     包含接口有：
         文件分段task管理器
@@ -69,20 +69,20 @@ UniDownloadSpeedTracker : IDownloadSpeedTracker
 
 ## 下载任务
 
-UniDownloadTask : IDownloadTask
+UniDownloader
     绑定task，开始、暂定、取消
 
 
-UniDownloadTaskManager : IDownloadTaskManager
-    管理IDownloadTask，暴露给UniFileDownloader
+UniDownloaderManager : IDownloaderManager
+    管理UniDownloader，暴露给UniFileDownloader
 
 ## 工厂类
 
-UniDownloadTaskManagerFactory : IDownloadTaskManagerFactory
+UniDownloaderManagerFactory : IDownloaderManagerFactory
     创建IDownloadTaskManager
 
-UniDownloadTaskFactory : IDownloadTaskFactory
-    创建IDownloadTask
+UniDownloaderFactory : IDownloaderFactory
+    创建UniDownloader
 
 UniDownloadServiceFactory : IDownloadServiceFactory
     创建IDownloadService
@@ -117,3 +117,10 @@ UniDownloadContextInvaildException : Exception
 UniDownloadLogger
 
 UniDownloadLogging : IDownloadLogging
+
+public void Start(){
+    GetLinkFileSizeAsync("123.com")
+}
+
+public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
+{}

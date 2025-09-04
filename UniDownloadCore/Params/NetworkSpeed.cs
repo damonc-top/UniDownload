@@ -1,7 +1,7 @@
-namespace UniDownload.Config
+namespace UniDownload
 {
     /*
-        设备网络速度
+        网络速度
     */
     internal enum NetworkSpeed
     {

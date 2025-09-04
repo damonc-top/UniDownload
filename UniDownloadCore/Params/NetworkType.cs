@@ -1,4 +1,4 @@
-namespace UniDownload.Config
+namespace UniDownload
 {
     /*
         网络类型
@@ -6,6 +6,7 @@ namespace UniDownload.Config
     internal enum NetworkType
     {
         Wifi,
-        Mobile
+        Mobile,
+        Other
     }
 }

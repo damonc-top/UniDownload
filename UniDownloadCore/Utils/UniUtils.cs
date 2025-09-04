@@ -1,6 +1,5 @@
-using UniDownload.Config;
 
-namespace UniDownload.Utils
+namespace UniDownload
 {
     /*
         工具类
@@ -14,7 +13,7 @@ namespace UniDownload.Utils
         {
             return DevicePerformance.Medium;
         }
-
+        
         /*
             获取设备网络类型
         */
@@ -22,13 +21,22 @@ namespace UniDownload.Utils
         {
             return NetworkType.Wifi;
         }
-
+        
         /*
             获取设备网络速度
         */
         public static NetworkSpeed GetDeviceNetworkSpeed()
         {
             return NetworkSpeed.Fast;
+        }
+
+        /// <summary>
+        /// 使用游戏开始到现在运行的帧数作为简易时间戳
+        /// </summary>
+        /// <returns></returns>
+        public static int TimeTicks()
+        {
+            return UnityEngine.Time.frameCount;
         }
     }
 }

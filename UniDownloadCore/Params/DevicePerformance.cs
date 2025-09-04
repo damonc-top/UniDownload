@@ -1,7 +1,7 @@
-namespace UniDownload.Config
+namespace UniDownload
 {
     /*
-        设备性能分级
+        设备性能
     */
     internal enum DevicePerformance
     {

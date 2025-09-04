@@ -1,12 +1,22 @@
+using System;
+using UniDownload.Schedulers;
 
-using UniDownload.Config;
-
-namespace UniDownload.Core
+namespace UniDownload
 {
     /*
-        网络下载管理器
+        下载管理器
     */
-    public class UniDownloadManager
+    public class UniDownloadManager : IDisposable
     {
+        private readonly IDownloadScheduler _downloadScheduler;
+
+        public void Update(int deltaTime)
+        {
+            _downloadScheduler.Update(deltaTime);
+        }
+
+        public void Dispose()
+        {
+        }
     }
 }
