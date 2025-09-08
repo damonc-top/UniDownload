@@ -9,7 +9,7 @@ namespace UniDownload
     /*
         下载调度器
     */
-    internal class UniDownloaderScheduler : IDownloadScheduler
+    internal class UniDownloadScheduler : IDownloadScheduler
     {
         // 调度器
         private Task _scheduler;
@@ -23,26 +23,22 @@ namespace UniDownload
         // 最大并发数
         private int _maxParallel;
 
-        private UniProtocolType _protocol;
-
         // 下载队列
         private BlockingCollection<UniFileDownloadTask> _downloadQueue;
         
         // 下载ID与任务映射
-        private Dictionary<int, UniFileDownloadTask> _idMapTasks;
+        private Dictionary<int, UniDownloadRequest> _uniDownloadRequests;
         
         // 下载ID与文件名映射
         private Dictionary<string, int> _nameMapTaskIds;
 
-        public UniDownloaderScheduler(int maxParallel, UniProtocolType protocolType)
+        public UniDownloadScheduler()
         {
-            _maxParallel = maxParallel;
-            _protocol = protocolType;
-            _downloadCtr = new SemaphoreSlim(maxParallel);
-
+            _maxParallel = UniUtils.GetMaxParallel();
+            _downloadCtr = new SemaphoreSlim(_maxParallel);
             _cancellation = new CancellationTokenSource();
             _downloadQueue = new BlockingCollection<UniFileDownloadTask>();
-            _idMapTasks = new Dictionary<int, UniFileDownloadTask>();
+            _uniDownloadRequests = new Dictionary<int, UniDownloadRequest>();
             _nameMapTaskIds = new Dictionary<string, int>();
             _scheduler = new Task(LongRunning, TaskCreationOptions.LongRunning);
         }
@@ -61,7 +57,7 @@ namespace UniDownload
             foreach (var task in _downloadQueue.GetConsumingEnumerable(_cancellation.Token))
             {
                 _downloadCtr.Wait(_cancellation.Token);
-                task.Start(_protocol);
+                task.Start();
             }
         }
         
@@ -94,22 +90,13 @@ namespace UniDownload
         /// <returns></returns>
         public int AddTask(string fileName, Action<bool> finish, Action<int> process)
         {
-            UniFileDownloadTask task;   
-            if(_nameMapTaskIds.TryGetValue(fileName, out int taskId))
-            {
-                _idMapTasks.TryGetValue(taskId, out task);
-                if(task != null)
-                {
-                    task.AddAction(finish, process);
-                    return taskId;
-                }
-            }
-            task = UniFileDownloadTask.Create(fileName);
-            int uuid = task.GetTaskID();
-            _downloadQueue.Add(task);
-            _idMapTasks.Add(uuid, task);
-            _nameMapTaskIds.Add(fileName, uuid);
-            return task.GetTaskID();
+            return 0;
+        }
+        
+        public int AddTask(UniDownloadRequest request)
+        {
+            //request.SetMainThread(_uniMainThread);
+            throw new NotImplementedException();
         }
 
         public void StopTask(int uuid)

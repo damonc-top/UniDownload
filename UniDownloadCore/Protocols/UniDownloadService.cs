@@ -1,6 +1,6 @@
 namespace UniDownload
 {
-    public class UniDownloader
+    internal class UniDownloadService
     {
         
     }

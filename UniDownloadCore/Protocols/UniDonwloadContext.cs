@@ -3,7 +3,7 @@ namespace UniDownload
     /*
         下载上下文
     */
-    internal interface IDownloadContext
+    internal class UniDownloadContext
     {
         public string ServerUrl { get; }
         public string SavePath { get; }

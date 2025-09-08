@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,34 +18,27 @@ namespace UniDownload
         private UniDownloadState _state;
 
         // 文件信息摘要
-        private readonly UniFileInfo _fileInfo;
+        private readonly UniDownloadFileInfo _fileInfo;
 
-        private IDownloadService _service;
+        // private UniDownloadService _service;
 
         private CancellationTokenSource _queryCancellation;
         
         // 任务时间戳
         private int _timestamp;
+        
 
-        // 下载完成回调
-        private Dictionary<int, Action<bool>> _downloadFinish;
-
-        // 下载进度回调
-        private Dictionary<int, Action<int>> _downloadProcess;
-
-        private UniFileDownloadTask(int uuid, UniFileInfo fileInfo)
+        private UniFileDownloadTask(int uuid, UniDownloadFileInfo fileInfo)
         {
             _uuid = uuid;
             _fileInfo = fileInfo;
             _state = UniDownloadState.Prepare;
-            _downloadFinish = new Dictionary<int, Action<bool>>();
-            _downloadProcess = new Dictionary<int, Action<int>>();
         }
 
         /// <summary>
         /// 开始执行任务下载
         /// </summary>
-        public void Start(UniProtocolType protocolType)
+        public void Start()
         {
             _state = UniDownloadState.Querying;
             _queryCancellation = new CancellationTokenSource();
@@ -55,11 +49,14 @@ namespace UniDownload
         {
             try
             {
-
+                HttpClient client = new HttpClient();
+                Task<HttpResponseMessage> task = client.SendAsync(new HttpRequestMessage());
+                await task;
             }
             catch (Exception e)
             {
-                Console.WriteLine(e);
+                //TODO head链接异常处理
+                UniLogger.Error(e.Message);
             }
         }
         
@@ -90,17 +87,7 @@ namespace UniDownload
         public int AddAction(Action<bool> finish, Action<int> process)
         {
             int actionId = 0;
-            if (finish != null)
-            {
-                actionId = UniID.ID;
-                _downloadFinish.Add(actionId, finish);  
-            }
 
-            if (process != null)
-            {
-                _downloadProcess.Add(actionId == 0 ? UniID.ID : actionId, process);
-            }
-            
             return actionId;
         }
 
@@ -110,8 +97,7 @@ namespace UniDownload
         /// <param name="actionId"></param>
         public void RemoveAction(int actionId)
         {
-            _downloadFinish.Remove(actionId);
-            _downloadProcess.Remove(actionId);
+
         }
         
 
@@ -133,9 +119,9 @@ namespace UniDownload
         {
             //TODO 计算文件MD5值
             string md5 = "";
-            string newUrl = $"{UniSetting.RootServerUrl}/{filename}";
-            string savePath = $"{UniSetting.RootSavePath}/{filename}";
-            UniFileInfo fileInfo = new UniFileInfo(filename, newUrl, savePath, md5);
+            string newUrl = "";//$"{UniSetting.RootServerUrl}/{filename}";
+            string savePath = "";//$"{UniSetting.RootSavePath}/{filename}";
+            UniDownloadFileInfo fileInfo = new UniDownloadFileInfo(filename, newUrl, savePath, md5);
             return new UniFileDownloadTask(UniID.ID, fileInfo);
         }
         

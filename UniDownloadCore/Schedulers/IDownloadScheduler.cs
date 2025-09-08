@@ -28,7 +28,7 @@ namespace UniDownload
         /// 添加下载任务
         /// </summary>
         /// <param name="fileName"></param>
-        /// <returns></returns>
+        /// <returns>任务ID</returns>
         public int AddTask(string fileName);
 
         /// <summary>
@@ -37,8 +37,15 @@ namespace UniDownload
         /// <param name="fileName"></param>
         /// <param name="finish"></param>
         /// <param name="process"></param>
-        /// <returns></returns>
+        /// <returns>任务ID</returns>
         public int AddTask(string fileName, Action<bool> finish, Action<int> process);
+
+        /// <summary>
+        /// 添加下载任务
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns>任务ID</returns>
+        public int AddTask(UniDownloadRequest request);
 
         /// <summary>
         /// 停止任务
