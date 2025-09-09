@@ -64,7 +64,8 @@ namespace UniDownload
 
         private void StartDownloadTask(UniDownloadRequest request)
         {
-            UniDownloadTask.Create(request.FileName)
+            UniDownloadTask task = UniDownloadTask.Create(request);
+            _activeTask.TryAdd(request.RequestID, task);
         }
         
         private void OnRequestFinish(int uuid, UniDownloadRequest request, bool finish)
@@ -72,6 +73,7 @@ namespace UniDownload
             _downloadCtr.Release();
             request.OnFinish(finish);
             _requestsFileMap.TryRemove(request.FileName, out _);
+            _activeTask.TryRemove(request.RequestID, out _);
         }
 
         private void OnRequestProgress(UniDownloadRequest request, int progress)
@@ -122,11 +124,13 @@ namespace UniDownload
             foreach (var request in _requestQueue)
             {
                 //TODO operation的uuid映射到request，避免全量循环压力
-                request.ActionUnRegister(uuid);
-            }
-            if (_activeTask.TryGetValue(uuid, out var downloadTask))
-            {
-                downloadTask.Stop();
+                if (request.ActionUnRegister(uuid))
+                {
+                    if (!request.HasOperation && _activeTask.TryGetValue(request.RequestID, out var downloadTask))
+                    {
+                        downloadTask.Stop();        
+                    }
+                }
             }
         }
 

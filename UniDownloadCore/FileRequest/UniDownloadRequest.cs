@@ -12,21 +12,26 @@ namespace UniDownload
     internal class UniDownloadRequest : IPoolable
     {
         private readonly int _invalidID = -1;
+        private int _requestID;
+        private string _fileName;
         private bool _finishFlag;
         private int _progressNum;
 
         private ConcurrentDictionary<int, UniRequestOperation> _callbackRequest;
 
-        public string FileName;
+        public string FileName => _fileName;
+        public int RequestID => _requestID;
+        
+        public bool HasOperation => _callbackRequest.Count > 0;
 
         public UniDownloadRequest()
         {
-            
+            _requestID = UniUUID.ID;
         }
         
         public void Initialize(string fileName)
         {
-            FileName = fileName;
+            _fileName = fileName;
             _callbackRequest = new ConcurrentDictionary<int, UniRequestOperation>();
         } 
 
@@ -44,15 +49,11 @@ namespace UniDownload
         {
             if (uuid == _invalidID)
             {
-                return true;
+                return false;
             }
 
-            if (_callbackRequest.TryRemove(uuid, out _))
-            {
-                return true;
-            }
-            UniLogger.Error("移除下载出错， id不正确");
-            return false;
+            UniLogger.Debug($"取消下载 {_fileName}");
+            return _callbackRequest.TryRemove(uuid, out _);
         }
 
         /// <summary>
