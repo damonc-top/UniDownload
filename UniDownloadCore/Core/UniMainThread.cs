@@ -4,13 +4,13 @@ using UnityEngine;
 
 namespace UniDownload
 {
-    internal class UniMainThread : MonoBehaviour, IDisposable
+    internal class UniMainThread : IDisposable
     {
         private bool _dispose;
         private object _lock;
         private Queue<Action> _mainThreadAction;
         
-        private void Awake()
+        public UniMainThread()
         {
             _dispose = false;
             _lock = new object();
@@ -37,7 +37,7 @@ namespace UniDownload
             _mainThreadAction = null;
         }
 
-        private void Update()
+        public void Update()
         {
             if (_dispose)
             {

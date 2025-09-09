@@ -9,51 +9,45 @@ namespace UniDownload
     /*
         增加轻量级下载任务结构，应对瞬时爆发性请求下载
     */
-    public class UniDownloadRequest
+    internal class UniDownloadRequest : IPoolable
     {
         private readonly int _invalidID = -1;
         private bool _finishFlag;
         private int _progressNum;
 
-        private HashSet<int> _lightRequest;
-        private ConcurrentDictionary<int, UniDownloadSubscribe> _callbackRequest;
+        private ConcurrentDictionary<int, UniRequestOperation> _callbackRequest;
+
+        public string FileName;
 
         public UniDownloadRequest()
         {
-            _lightRequest = new HashSet<int>();
-            _callbackRequest = new ConcurrentDictionary<int, UniDownloadSubscribe>();
+            
+        }
+        
+        public void Initialize(string fileName)
+        {
+            FileName = fileName;
+            _callbackRequest = new ConcurrentDictionary<int, UniRequestOperation>();
         } 
 
-        public int Subscribe(Action<bool> onFinish, Action<int> onProgress, object owner = null)
+        public int ActionRegister(Action<bool> onFinish, Action<int> onProgress)
         {
-            int id = UniID.ID;
-            if (onFinish != null || onProgress != null)
-            {
-                UniDownloadSubscribe subscribe = new UniDownloadSubscribe(id, owner)
-                {
-                    OnFinish = onFinish, OnProgress = onProgress
-                };
-                _callbackRequest.TryAdd(id, subscribe);
-                return id; 
-            }
-
-            _lightRequest.Add(id);
-            return id;
+            UniRequestOperation operation = UniUtils.RentRequestOperation();
+            int uuid = operation.UUID;
+            operation.OnFinish = onFinish;
+            operation.OnProgress = onProgress;
+            _callbackRequest.TryAdd(uuid, operation);
+            return operation.UUID;
         }
 
-        public bool Unsubscribe(int requestId)
+        public bool ActionUnRegister(int uuid)
         {
-            if (requestId == _invalidID)
-            {
-                return true;
-            }
-            
-            if (_lightRequest.Remove(requestId))
+            if (uuid == _invalidID)
             {
                 return true;
             }
 
-            if (_callbackRequest.TryRemove(requestId, out _))
+            if (_callbackRequest.TryRemove(uuid, out _))
             {
                 return true;
             }
@@ -61,18 +55,10 @@ namespace UniDownload
             return false;
         }
 
-        public int UnsubscribeByOwner(object owner)
-        {
-            var toRemove = _callbackRequest.Where(kvp => kvp.Value.Model == owner).ToList();
-        
-            foreach (var item in toRemove) {
-                _callbackRequest.TryRemove(item.Key, out _);
-            }
-            
-            return toRemove.Count;
-        }
-
-        public void MainThreadFinish()
+        /// <summary>
+        /// 主线程调用
+        /// </summary>
+        private void MainThreadFinish()
         {
             foreach (var subscribe in _callbackRequest)
             {
@@ -81,9 +67,13 @@ namespace UniDownload
                     subscribe.Value.OnFinish.Invoke(_finishFlag);
                 }
             }
+            //TODO 下载完成后执行回收逻辑
         }
 
-        public void MainThreadProgress()
+        /// <summary>
+        /// 主线程调用
+        /// </summary>
+        private void MainThreadProgress()
         {
             foreach (var subscribe in _callbackRequest)
             {
@@ -94,16 +84,34 @@ namespace UniDownload
             }
         }
 
+        /// <summary>
+        /// 下载线程回调
+        /// </summary>
+        /// <param name="finish"></param>
         public void OnFinish(bool finish)
         {
             _finishFlag = finish;
             UniUtils.RegisterMainThreadEvent(MainThreadFinish);
         }
 
+        /// <summary>
+        /// 下载线程回调
+        /// </summary>
+        /// <param name="progress"></param>
         public void OnProgress(int progress)
         {
             Interlocked.Exchange(ref _progressNum, progress);
             UniUtils.RegisterMainThreadEvent(MainThreadProgress);
+        }
+
+        public void OnRentFromPool()
+        {
+            throw new NotImplementedException();
+        }
+
+        public void OnReturnToPool()
+        {
+            throw new NotImplementedException();
         }
     }
 }

@@ -9,16 +9,13 @@ namespace UniDownload
     /*
         文件下载任务
     */
-    internal class UniFileDownloadTask : IDisposable
+    internal class UniDownloadTask : IDisposable
     {
-        // 任务UUID
-        private int _uuid;
-
         // 任务状态
         private UniDownloadState _state;
 
         // 文件信息摘要
-        private readonly UniDownloadFileInfo _fileInfo;
+        private UniDownloadRequest _request;
 
         // private UniDownloadService _service;
 
@@ -27,11 +24,9 @@ namespace UniDownload
         // 任务时间戳
         private int _timestamp;
         
-
-        private UniFileDownloadTask(int uuid, UniDownloadFileInfo fileInfo)
+        private UniDownloadTask(UniDownloadRequest request)
         {
-            _uuid = uuid;
-            _fileInfo = fileInfo;
+            _request = request;
             _state = UniDownloadState.Prepare;
         }
 
@@ -43,6 +38,11 @@ namespace UniDownload
             _state = UniDownloadState.Querying;
             _queryCancellation = new CancellationTokenSource();
             Task.Run(CreateDownloadContext, _queryCancellation.Token);
+        }
+
+        public void Stop()
+        {
+            
         }
 
         private async void CreateDownloadContext()
@@ -100,29 +100,19 @@ namespace UniDownload
 
         }
         
-
-        /// <summary>
-        /// 获取任务ID
-        /// </summary>
-        /// <returns>返回任务ID</returns>
-        public int GetTaskID()
-        {
-            return _uuid;
-        }
-
         /// <summary>
         /// 创建文件下载任务
         /// </summary>
         /// <param name="filename">文件相对路径，eg:Bundles/Android/xxx</param>
         /// <returns>UniFileDownloadTask</returns>
-        public static UniFileDownloadTask Create(string filename)
+        public static UniDownloadTask Create(UniDownloadRequest request)
         {
             //TODO 计算文件MD5值
             string md5 = "";
             string newUrl = "";//$"{UniSetting.RootServerUrl}/{filename}";
             string savePath = "";//$"{UniSetting.RootSavePath}/{filename}";
-            UniDownloadFileInfo fileInfo = new UniDownloadFileInfo(filename, newUrl, savePath, md5);
-            return new UniFileDownloadTask(UniID.ID, fileInfo);
+            
+            return new UniDownloadTask(request);
         }
         
         /// <summary>

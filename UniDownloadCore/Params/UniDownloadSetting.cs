@@ -21,9 +21,24 @@ namespace UniDownload
         public string BaseSaveTempPath { get; set; }
 
         /// <summary>
-        /// 最大并发数
+        /// 最大调度并发数
         /// </summary>
-        public int MaxParallel { get; set; } = 4;
+        public int MaxScheduleParallel { get; set; } = 4;
+
+        /// <summary>
+        /// 最大头文件请求并发数
+        /// </summary>
+        public int MaxHeadParallel { get; set; } = 1;
+
+        /// <summary>
+        /// 最大下载并发数
+        /// </summary>
+        public int MaxDownloadParallel { get; set; } = 2;
+
+        /// <summary>
+        /// 最大IO并发数
+        /// </summary>
+        public int MaxIOParallel { get; set; } = 1;
 
         /// <summary>
         /// 分片大小（字节）

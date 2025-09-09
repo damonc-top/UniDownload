@@ -1,6 +1,4 @@
 
-using UnityEngine;
-
 namespace UniDownload
 {
     /*
@@ -15,7 +13,7 @@ namespace UniDownload
         public static int GetMaxParallel()
         {
             UniDownloadSetting setting = UniServiceContainer.Get<UniDownloadSetting>();
-            return setting.MaxParallel;
+            return setting.MaxScheduleParallel;
         }
 
         /// <summary>
@@ -26,6 +24,22 @@ namespace UniDownload
         {
             UniMainThread main = UniServiceContainer.Get<UniMainThread>();
             main.Enqueue(call);
+        }
+
+        /// <summary>
+        /// 复用request operation对象
+        /// </summary>
+        /// <returns></returns>
+        public static UniRequestOperation RentRequestOperation()
+        {
+            UniDownloadPool pool = UniServiceContainer.Get<UniDownloadPool>();
+            return pool.Rent<UniRequestOperation>();
+        }
+
+        public static UniDownloadRequest RentDownloadRequest()
+        {
+            UniDownloadPool pool = UniServiceContainer.Get<UniDownloadPool>();
+            return pool.Rent<UniDownloadRequest>();
         }
         
         /*
@@ -59,14 +73,6 @@ namespace UniDownload
         public static int TimeTicks()
         {
             return UnityEngine.Time.frameCount;
-        }
-
-        public static UniMainThread CreateUniMainThread()
-        {
-            GameObject obj = new GameObject("UniMainThread");
-            UniMainThread uniMainThread = obj.AddComponent<UniMainThread>();
-            Object.DontDestroyOnLoad(uniMainThread);
-            return uniMainThread;
         }
     }
 }

@@ -4,9 +4,12 @@ namespace UniDownload
 {
     /*
      * 资源下载管理器，提供下载、暂停、取消等接口
+     * 只支持Unity 2020.x及以上的新版本
     */
     public class UniDownloadManager : IDisposable
     {
+#if UNITY_2020_1_OR_NEWER
+        private UniMainThread _mainThread;
         private IDownloadScheduler _downloadScheduler;
         
         /// <summary>
@@ -18,31 +21,43 @@ namespace UniDownload
         public UniDownloadManager(string baseURL, string baseSavePath, string saveTempRootPath)
         {
             _downloadScheduler = new UniDownloadScheduler();
-            UniMainThread uniMainThread = UniUtils.CreateUniMainThread();
-            UniServiceContainer.Register<UniMainThread>(uniMainThread);
-            UniDownloadSetting setting = new UniDownloadSetting();
-            UniServiceContainer.Register<UniDownloadSetting>(setting);
+            _mainThread = new UniMainThread();
+            UniServiceContainer.Register<UniMainThread>(_mainThread);
+            UniServiceContainer.Register<UniDownloadSetting>(new UniDownloadSetting());
+            UniServiceContainer.Register<UniDownloadPool>(new UniDownloadPool(20));
         }
 
-        public int AddTask(string fileName)
+        public void MainUpdate(float delta)
         {
-            return _downloadScheduler.AddTask(fileName);
+            _downloadScheduler.Update(delta);
+            _mainThread.Update();
         }
 
-        public int AddTask(string fileName, Action<bool> finish, Action<int> process)
+        public int AddRequest(string fileName)
         {
-            return _downloadScheduler.AddTask(fileName, finish, process);
+            return _downloadScheduler.AddRequest(fileName);
         }
 
-        public int AddTask(UniDownloadRequest request)
+        public int AddRequest(string fileName, Action<bool> finish, Action<int> process)
         {
-            return _downloadScheduler.AddTask(request);
+            return _downloadScheduler.AddRequest(fileName, finish, process);
         }
-        
+
+        public void StopRequest(int requestID, object owner = null)
+        {
+            _downloadScheduler.StopRequest(requestID, owner);
+        }
+
+        public void PauseRequest(int uuid)
+        {
+            _downloadScheduler.PauseRequest(uuid);
+        }
+
         public void Dispose()
         {
             _downloadScheduler?.Dispose();
             UniServiceContainer.Dispose();
         }
+#endif
     }
 }

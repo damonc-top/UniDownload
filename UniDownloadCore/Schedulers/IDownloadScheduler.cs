@@ -12,7 +12,7 @@ namespace UniDownload
         /// 更新调度器
         /// </summary>
         /// <param name="deltaTime"></param>
-        public void Update(int deltaTime);
+        public void Update(float deltaTime);
 
         /// <summary>
         /// 开始调度
@@ -29,7 +29,7 @@ namespace UniDownload
         /// </summary>
         /// <param name="fileName"></param>
         /// <returns>任务ID</returns>
-        public int AddTask(string fileName);
+        public int AddRequest(string fileName);
 
         /// <summary>
         /// 添加下载任务，可加载回调
@@ -38,38 +38,32 @@ namespace UniDownload
         /// <param name="finish"></param>
         /// <param name="process"></param>
         /// <returns>任务ID</returns>
-        public int AddTask(string fileName, Action<bool> finish, Action<int> process);
-
-        /// <summary>
-        /// 添加下载任务
-        /// </summary>
-        /// <param name="request"></param>
-        /// <returns>任务ID</returns>
-        public int AddTask(UniDownloadRequest request);
+        public int AddRequest(string fileName, Action<bool> finish, Action<int> process);
 
         /// <summary>
         /// 停止任务
         /// </summary>
-        /// <param name="taskId"></param>
-        public void StopTask(int taskId);
+        /// <param name="uuid">请求ID</param>
+        /// <param name="owner">模块</param>
+        public void StopRequest(int uuid, object owner);
 
         /// <summary>
         /// 暂停任务
         /// </summary>
-        /// <param name="taskId"></param>
-        public void PauseTask(int taskId);
+        /// <param name="uuid"></param>
+        public void PauseRequest(int uuid);
 
         /// <summary>
         /// 恢复任务
         /// </summary>
-        /// <param name="taskId"></param>
-        public void ResumeTask(int taskId);
+        /// <param name="uuid"></param>
+        public void ResumeRequest(int uuid);
 
         /// <summary>
         /// 移除任务
         /// </summary>
-        /// <param name="taskId"></param>
-        public void RemoveTask(int taskId);
+        /// <param name="uuid"></param>
+        public void RemoveRequest(int uuid);
 
         // 释放
         public void Dispose();

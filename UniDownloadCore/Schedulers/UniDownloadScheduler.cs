@@ -11,6 +11,8 @@ namespace UniDownload
     */
     internal class UniDownloadScheduler : IDownloadScheduler
     {
+        private int TakeDelay = 1000;
+        
         // 调度器
         private Task _scheduler;
         
@@ -23,23 +25,22 @@ namespace UniDownload
         // 最大并发数
         private int _maxParallel;
 
-        // 下载队列
-        private BlockingCollection<UniFileDownloadTask> _downloadQueue;
-        
-        // 下载ID与任务映射
-        private Dictionary<int, UniDownloadRequest> _uniDownloadRequests;
-        
-        // 下载ID与文件名映射
-        private Dictionary<string, int> _nameMapTaskIds;
+        // 请求队列
+        private BlockingCollection<UniDownloadRequest> _requestQueue;
 
+        // 下载队列
+        private ConcurrentDictionary<int, UniDownloadTask> _activeTask;
+        
+        private ConcurrentDictionary<string, UniDownloadRequest> _requestsFileMap;
+        
         public UniDownloadScheduler()
         {
             _maxParallel = UniUtils.GetMaxParallel();
             _downloadCtr = new SemaphoreSlim(_maxParallel);
             _cancellation = new CancellationTokenSource();
-            _downloadQueue = new BlockingCollection<UniFileDownloadTask>();
-            _uniDownloadRequests = new Dictionary<int, UniDownloadRequest>();
-            _nameMapTaskIds = new Dictionary<string, int>();
+            _requestQueue = new BlockingCollection<UniDownloadRequest>();
+            _activeTask = new ConcurrentDictionary<int, UniDownloadTask>();
+            _requestsFileMap = new ConcurrentDictionary<string, UniDownloadRequest>();
             _scheduler = new Task(LongRunning, TaskCreationOptions.LongRunning);
         }
 
@@ -47,18 +48,35 @@ namespace UniDownload
         /// 主线程更新
         /// </summary>
         /// <param name="deltaTime"></param>
-        public void Update(int deltaTime)
+        public void Update(float deltaTime)
         {
 
         }
 
         private void LongRunning()
         {
-            foreach (var task in _downloadQueue.GetConsumingEnumerable(_cancellation.Token))
+            foreach (var request in _requestQueue.GetConsumingEnumerable(_cancellation.Token))
             {
                 _downloadCtr.Wait(_cancellation.Token);
-                task.Start();
+                StartDownloadTask(request);
             }
+        }
+
+        private void StartDownloadTask(UniDownloadRequest request)
+        {
+            UniDownloadTask.Create(request.FileName)
+        }
+        
+        private void OnRequestFinish(int uuid, UniDownloadRequest request, bool finish)
+        {
+            _downloadCtr.Release();
+            request.OnFinish(finish);
+            _requestsFileMap.TryRemove(request.FileName, out _);
+        }
+
+        private void OnRequestProgress(UniDownloadRequest request, int progress)
+        {
+            request.OnProgress(progress);
         }
         
         public void Start()
@@ -76,9 +94,9 @@ namespace UniDownload
         /// </summary>
         /// <param name="fileName">文件名字，相对路径文件名，eg:Bundles/Android/xxx</param>
         /// <returns></returns>
-        public int AddTask(string fileName)
+        public int AddRequest(string fileName)
         {
-            return AddTask(fileName, null, null);
+            return AddRequest(fileName, null, null);
         }
 
         /// <summary>
@@ -86,35 +104,43 @@ namespace UniDownload
         /// </summary>
         /// <param name="fileName">文件名字，相对路径文件名，eg:Bundles/Android/xxx</param>
         /// <param name="finish">下载完成回调，重试次数用完或网络异常返回false</param>
-        /// <param name="process">下载进度回调，进度从0-100</param>
+        /// <param name="progress">下载进度回调，进度从0-100</param>
         /// <returns></returns>
-        public int AddTask(string fileName, Action<bool> finish, Action<int> process)
+        public int AddRequest(string fileName, Action<bool> finish, Action<int> progress)
         {
-            return 0;
-        }
-        
-        public int AddTask(UniDownloadRequest request)
-        {
-            //request.SetMainThread(_uniMainThread);
-            throw new NotImplementedException();
+            if (!_requestsFileMap.TryGetValue(fileName, out var request))
+            {
+                request = UniUtils.RentDownloadRequest();
+                request.Initialize(fileName);
+                _requestsFileMap.TryAdd(fileName, request);
+            }
+            return request.ActionRegister(finish, progress);
         }
 
-        public void StopTask(int uuid)
+        public void StopRequest(int uuid, object owner)
+        {
+            foreach (var request in _requestQueue)
+            {
+                //TODO operation的uuid映射到request，避免全量循环压力
+                request.ActionUnRegister(uuid);
+            }
+            if (_activeTask.TryGetValue(uuid, out var downloadTask))
+            {
+                downloadTask.Stop();
+            }
+        }
+
+        public void PauseRequest(int uuid)
         {
             throw new System.NotImplementedException();
         }
 
-        public void PauseTask(int uuid)
+        public void ResumeRequest(int uuid)
         {
             throw new System.NotImplementedException();
         }
 
-        public void ResumeTask(int uuid)
-        {
-            throw new System.NotImplementedException();
-        }
-
-        public void RemoveTask(int uuid)
+        public void RemoveRequest(int uuid)
         {
             throw new System.NotImplementedException();
         }

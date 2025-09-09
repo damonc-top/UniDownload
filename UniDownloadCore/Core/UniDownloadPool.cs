@@ -5,12 +5,12 @@ using System.Threading;
 namespace UniDownload
 {
     /// <summary>
-    /// 通用对象池，支持任何实现IPoolable接口的类型
+    /// 通用对象池，支持实现IPoolable接口的类型
     /// </summary>
-    internal class UniDownloadPool<T> where T : IPoolable
+    internal class UniDownloadPool
     {
         private object _lock = new object();
-        private ConcurrentQueue<T> _pool;
+        private ConcurrentQueue<IPoolable> _pool;
 
         // 池配置
         private int _maxPoolSize = 20;  // 最大池大小
@@ -19,34 +19,42 @@ namespace UniDownload
         /// <summary>
         /// 设置池的最大大小
         /// </summary>
-        public UniDownloadPool(int maxSize)
+        public UniDownloadPool(int maxSize = 8)
         {
             _maxPoolSize = Math.Max(1, maxSize);
-            _pool = new ConcurrentQueue<T>();
+            _pool = new ConcurrentQueue<IPoolable>();
         }
         
         /// <summary>
         /// 从池中获取对象
         /// </summary>
-        public T Rent()
+        public T Rent<T>() where  T : IPoolable, new()
         {
-            if (_pool.TryDequeue(out T item))
-            {
-                Interlocked.Decrement(ref _currentCount);
-                item.OnRentFromPool();
-                return item;
-            }
+            T result = default(T);
             
-            // 池中没有对象，创建新的
-            var newItem = Activator.CreateInstance<T>();
-            newItem.OnRentFromPool();
-            return newItem;
+            foreach (IPoolable item in _pool)
+            {
+                if (item is T findResult)
+                {
+                    result = findResult;
+                    Interlocked.Decrement(ref _currentCount);
+                    break;
+                }
+            }
+
+            if (result == null)
+            {
+                result = new T();
+            }
+
+            result.OnRentFromPool();
+            return result;
         }
         
         /// <summary>
         /// 将对象返回到池中
         /// </summary>
-        public void Return(T item)
+        public void Return(IPoolable item)
         {
             if (item == null) return;
             
@@ -58,8 +66,13 @@ namespace UniDownload
             {
                 _pool.Enqueue(item);
                 Interlocked.Increment(ref _currentCount);
+                return;
             }
-            // 超出限制的对象直接丢弃，让GC处理
+
+            if (item is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
         }
 
         /// <summary>
@@ -79,12 +92,13 @@ namespace UniDownload
             {
                 while (_pool.TryDequeue(out var value))
                 {
-                    Interlocked.Decrement(ref _currentCount);
                     if (value is IDisposable disposable)
                     {
                         disposable.Dispose();
                     }
                 }
+
+                _currentCount = 0;
             }
         }
     }
