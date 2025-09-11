@@ -9,18 +9,23 @@ namespace UniDownload.UniDownloadCore
     {
         private bool _stop;
         private int _maxParallel;
-        private int _maxActiving;
-        private object _lock;
-        private List<UniDownloadRequest> _requests;
-        private List<UniDownloadRequest> _activeRequests;
+        private int _maxActivating;
+        private readonly object _lock;
         private readonly ITaskProcessor _taskProcessor;
-        // request维护的operation ID字典
+        
+        // 全量request对象
+        private List<UniDownloadRequest> _requests;
+        
+        // 处于下载中的request
+        private List<UniDownloadRequest> _activeRequests;
+        
+        // operation ID映射request
         private Dictionary<int, UniDownloadRequest> _requestActions;
         
-        // 维护文件下载完成的字典
+        // file ID映射request
         private Dictionary<int, UniDownloadRequest> _requestsFinish;
         
-        // 维护同一文件重复下载的字典
+        // file Name映射request
         private Dictionary<string, UniDownloadRequest> _requestRepeats;
 
         public UniDownloadRequestScheduler(ITaskProcessor processor)
@@ -56,7 +61,7 @@ namespace UniDownload.UniDownloadCore
                     request.Initialize(fileName, OnFinish);
                     AddRequestToList(request);
                     _requestRepeats[fileName] = request;
-                    _requestsFinish[request.FileID] = request;
+                    _requestsFinish[request.FileId] = request;
                 }
 
                 request.SetPriority(isHighest);
@@ -97,7 +102,7 @@ namespace UniDownload.UniDownloadCore
             _requestRepeats = null;
         }
 
-        // 检查request生命周期是否有效，如果被标记了取消同时到期，就要回收该对象
+        // 检查request的生命周期是否有效，如果被标记了取消并同时到期，就要回收该对象
         private void CheckRequestLifeTime()
         {
             int lifeTime = UniDownloadTool.GetRequestLifeTime();
@@ -106,7 +111,7 @@ namespace UniDownload.UniDownloadCore
             {
                 foreach (var request in _requests)
                 {
-                    if (request.IsCanceling && request.HotTime + lifeTime >= time)
+                    if (request.IsCanceling && (request.HotTime + lifeTime) <= time)
                     {
                         request.LifeTimeExpired();
                         _requests.Remove(request);
@@ -121,12 +126,12 @@ namespace UniDownload.UniDownloadCore
         {
             lock (_lock)
             {
-                if (_requests.Count < 1 || _maxActiving >= _maxParallel)
+                if (_requests.Count < 1 || _maxActivating >= _maxParallel)
                 {
                     return;
                 }
 
-                int available = _maxParallel - _maxActiving;
+                int available = _maxParallel - _maxActivating;
                 int toTakeNum = Math.Min(available, _requests.Count);
                 for (int i = 0; i < toTakeNum; i++)
                 {
@@ -141,7 +146,7 @@ namespace UniDownload.UniDownloadCore
                 if (_taskProcessor.CanAcceptRequest())
                 {
                     _taskProcessor.ProcessRequest(request);
-                    Interlocked.Increment(ref _maxActiving);
+                    Interlocked.Increment(ref _maxActivating);
                 }
                 else
                 {
@@ -191,7 +196,7 @@ namespace UniDownload.UniDownloadCore
                     _requestsFinish.Remove(actionUuid);
                     _activeRequests.Remove(request);
                     _requestRepeats.Remove(request.FileName);
-                    _maxActiving--;
+                    _maxActivating--;
                 }
             }
         }

@@ -2,6 +2,9 @@ namespace UniDownload.UniDownloadCore
 {
     internal class UniDownloadSetting
     {
+        // 最大并发数
+        public int MaxParallel { get; set; }
+        
         // 版本号或者时间戳能作为版本标记的值
         public string Version { get; set; }
 

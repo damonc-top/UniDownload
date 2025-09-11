@@ -9,6 +9,7 @@ namespace UniDownload.UniDownloadCore
         
         public UniDownloadManager()
         {
+            Initialize();
             RegistrationService();
         }
 
@@ -19,7 +20,7 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 主线程调用
-        public void Update(float delta)
+        public void Update()
         {
             _requestScheduler.Update();
             _taskScheduler.Update();
@@ -43,6 +44,14 @@ namespace UniDownload.UniDownloadCore
             _requestScheduler.RemoveRequest(uuid);
         }
 
+        // 初始化分层调度器
+        private void Initialize()
+        {
+            _taskScheduler = new UniDownloadTaskScheduler();
+            _requestScheduler = new UniDownloadRequestScheduler(_taskScheduler);
+        }
+        
+        // 注册全局服务对象
         private void RegistrationService()
         {
             UniServiceContainer.Register(new UniMainThread());

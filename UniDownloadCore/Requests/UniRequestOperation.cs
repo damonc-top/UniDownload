@@ -4,20 +4,19 @@ namespace UniDownload.UniDownloadCore
 {
     public class UniRequestOperation : IDisposable
     {
-        private int _uuid;
         public Action OnFinish;
         public Action<int> OnProgress;
         
-        public int UUID => _uuid;
+        public int Uuid { get; private set; }
 
         public UniRequestOperation()
         {
-            _uuid = UniUUID.NextID;
+            Uuid = UniUUID.NextID;
         }
 
         public void Dispose()
         {
-            _uuid = 0;
+            Uuid = 0;
             OnFinish = null;
             OnProgress = null;
         }

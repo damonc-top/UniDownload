@@ -6,7 +6,7 @@ namespace UniDownload.UniDownloadCore
 {
     internal class UniDownloadRequest : IDisposable
     {
-        private int _fileID;
+        private int _fileId;
         private int _hotTime;
         private int _refCount;
         private int _progress;
@@ -17,16 +17,15 @@ namespace UniDownload.UniDownloadCore
         private Dictionary<int, UniRequestOperation> _requestOperations;
 
         public int HotTime => _hotTime;
-        public int FileID => _fileID;
+        public int FileId => _fileId;
         public string FileName => _fileName;
         public RequestState State => _state;
         public bool IsHighest => _priority == UniRequestPriority.ManualMode;
         public bool IsDownloading => _state == RequestState.Downloading;
         public bool IsActivating => _state == RequestState.Activating;
         public bool IsCanceling => _state == RequestState.Canceling;
-        public UniDownloadRequest()
-        {
-        }
+        
+        public UniDownloadRequest() { }
 
         // 初始化
         public void Initialize(string fileName, Action<int> onRequestFinish)
@@ -34,7 +33,7 @@ namespace UniDownload.UniDownloadCore
             _refCount = 1;
             _progress = 0;
             _fileName = fileName;
-            _fileID = UniUUID.NextID;
+            _fileId = UniUUID.NextID;
             _state = RequestState.Activating;
             _onRequestFinish = onRequestFinish;
             _requestOperations = new Dictionary<int, UniRequestOperation>();
@@ -48,6 +47,7 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 注册下载回调，刷新热点时间与标记状态
+        // 返回的是该次请求注册的operationId
         public int Register(Action onFinish, Action<int> onProgress)
         {
             _refCount++;
@@ -62,7 +62,7 @@ namespace UniDownload.UniDownloadCore
                 UniRequestOperation operation = new UniRequestOperation();
                 operation.OnFinish = onFinish;
                 operation.OnProgress = onProgress;
-                uuid = operation.UUID;
+                uuid = operation.Uuid;
                 _requestOperations[uuid] = operation;
             }
             else
@@ -79,7 +79,7 @@ namespace UniDownload.UniDownloadCore
             _requestOperations.Remove(uuid);
             if (_refCount <= 0)
             {
-                _state = IsDownloading ? _state: RequestState.Canceling;
+                _state = IsDownloading ? _state : RequestState.Canceling;
                 _priority = IsDownloading ? UniRequestPriority.SilentMode : _priority;
                 _hotTime = UniDownloadTool.GetTime();
             }
@@ -101,15 +101,16 @@ namespace UniDownload.UniDownloadCore
         // 生命周期结束回收
         public void LifeTimeExpired()
         {
+            // TODO 对象自身的回收逻辑
             foreach (var operation in _requestOperations)
             {
-                _onRequestFinish(operation.Value.UUID);
+                _onRequestFinish(operation.Value.Uuid);
             }
         }
         
         public void Dispose()
         {
-            _fileID = -1;
+            _fileId = -1;
             _requestOperations = null;
             _state = RequestState.Disposed;
         }
@@ -120,7 +121,7 @@ namespace UniDownload.UniDownloadCore
             foreach (var operation in _requestOperations)
             {
                 operation.Value.OnFinish();
-                _onRequestFinish(operation.Value.UUID);
+                _onRequestFinish(operation.Value.Uuid);
             }
         }
 
