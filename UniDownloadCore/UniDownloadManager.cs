@@ -1,63 +1,52 @@
 using System;
 
-namespace UniDownload
+namespace UniDownload.UniDownloadCore
 {
-    /*
-     * 资源下载管理器，提供下载、暂停、取消等接口
-     * 只支持Unity 2020.x及以上的新版本
-    */
-    public class UniDownloadManager : IDisposable
+    public class UniDownloadManager
     {
-#if UNITY_2020_1_OR_NEWER
-        private UniMainThread _mainThread;
-        private IDownloadScheduler _downloadScheduler;
+        private UniDownloadRequestScheduler _requestScheduler;
+        private UniDownloadTaskScheduler _taskScheduler;
         
-        /// <summary>
-        /// 启动manager初始化基础路径
-        /// </summary>
-        /// <param name="baseURL">源站基础地址</param>
-        /// <param name="baseSavePath">正式保存根路径</param>
-        /// <param name="saveTempRootPath">下载临时根路径</param>
-        public UniDownloadManager(string baseURL, string baseSavePath, string saveTempRootPath)
+        public UniDownloadManager()
         {
-            _downloadScheduler = new UniDownloadScheduler();
-            _mainThread = new UniMainThread();
-            UniServiceContainer.Register<UniMainThread>(_mainThread);
-            UniServiceContainer.Register<UniDownloadSetting>(new UniDownloadSetting());
-            UniServiceContainer.Register<UniDownloadPool>(new UniDownloadPool(20));
+            RegistrationService();
         }
 
-        public void MainUpdate(float delta)
+        // 开始运行
+        public void StartRun()
         {
-            _downloadScheduler.Update(delta);
-            _mainThread.Update();
+            
         }
 
-        public int AddRequest(string fileName)
+        // 主线程调用
+        public void Update(float delta)
         {
-            return _downloadScheduler.AddRequest(fileName);
+            _requestScheduler.Update();
+            _taskScheduler.Update();
+            UniServiceContainer.Get<UniMainThread>().Update();
         }
 
-        public int AddRequest(string fileName, Action<bool> finish, Action<int> process)
+        // 停止运行
+        public void StopRun()
         {
-            return _downloadScheduler.AddRequest(fileName, finish, process);
+            _requestScheduler.Stop();
+            _taskScheduler.Stop();
         }
 
-        public void StopRequest(int requestID, object owner = null)
+        public int AddRequest(string fileName, bool isHighest, Action finish, Action<int> progress)
         {
-            _downloadScheduler.StopRequest(requestID, owner);
+            return _requestScheduler.AddRequest(fileName, isHighest, finish, progress);
         }
 
-        public void PauseRequest(int uuid)
+        public void RemoveRequest(int uuid)
         {
-            _downloadScheduler.PauseRequest(uuid);
+            _requestScheduler.RemoveRequest(uuid);
         }
 
-        public void Dispose()
+        private void RegistrationService()
         {
-            _downloadScheduler?.Dispose();
-            UniServiceContainer.Dispose();
+            UniServiceContainer.Register(new UniMainThread());
+            UniServiceContainer.Register(new UniDownloadSetting());
         }
-#endif
     }
 }

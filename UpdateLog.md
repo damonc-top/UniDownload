@@ -1,126 +1,34 @@
 
-进行模块化封装，对外提供下载、暂停、通知进度等
+配置数据层
+    版本号、源站地址、正式保存地址、临时保存地址、并发数
 
-## 下载管理器
+用户层
+    对外暴露的API，接收用户的请求下载、取消下载。收到请求下载后返回一个Operation标记，需要用户使用Operation标记来取消下载。
 
-UniDownloadManager : IDisposable
-    是对外API接口
-    包含接口有：
-        void 初始化Manager(serverBase, maxParallel) //maxParallel会根据设备性能分级二次优化
-        uuid 添加下载文件(url, finish<bool>)               //url暂定是相对路径
-        bool 暂停/取消任务(uuid)
-        bool 取消全部任务()
-        void Dispose()
-        EventHandler DownloadComplete
-        EventHandler DownloadProcess
+请求层
+    为了应多用户对同一文件的重复请求，或者用户发出了大量请求，在这里做了一个缓冲层，使用Request轻量级数据对象来包装用户的请求下载。
 
-## 下载数据事件参数
+    一个文件对应一个Request对象，重复下载时只有一个Request对象，其内部维护了下载Operation。
 
-UniDownloadDataEventArgs : EventArgs
-    下载数据事件通知，暂定
-    UniFileDownloader
+    当收到请求时，调度器会识别是否是重复任务，如果是新任务则创建Request对象，如果是已有任务则刷新Request对象时间戳并加入Operation维护，
 
-## 下载调度器
+    如果是取消下载把Request对象的内部Operation移除回收，如果没有Operation了，就给Request打上取消标记方便调度层筛查，同时1分钟后取消(避免频繁删除创建对象)
 
-UniDownloaderScheduler : IDownloaderScheduler
-    文件下载调度器，暴露给UniDownloadManager。控制文件下载并发、添加移除、开始暂停恢复、事件通知
-    包含接口有：
-        void 初始化(maxParallel, protocol, [worker])
-        uuid 添加下载文件(url, finish<bool>)
-        bool 暂停/取消任务(uuid)
-        bool 取消全部任务()
-        事件通知
+    在Unity主线程计算，筛查激活状态的和最新时间戳的Request对象推送给任务层开始处理下载
 
+任务层
+    接收到Request下载请求，创建Task对象并维护下载上下文Context
 
-UniDownloadWoker : IDownloadWoker
-    任务处理器，文件下载实际操作
-    包含接口有：
-        处理分段
+    Context数据优先检查本地临时保存地址下，是否是同版本号的，且断点续传对象Info是否存在的，如果满足两个条件就反序列化Info数据构建Context，如果不满足就从源站获取文件信息构建Context
 
+    如果从源站数据构建Context数据，。。。，推送给下载层
 
-## 下载文件
-
-UniFileDownloaTask : IDisposable
-    下载文件的包装类，管理文件下载地址、保存地址、文件md5、文件分段、控制Task下载与暂停、事件
-    包含接口有：
-        文件分段task管理器
-        下载状态
-        static Create()
-        int GetUUID()
-        bool 开始任务()
-        bool 暂停/取消任务()
-        bool 取消全部任务()
+下载层
+    根据Context创建下载管理Manager对象和下载并发Segment对象，每个Segment对象有inStream、outStream、保存地址，Manager对象根据Segment数据负责更新Context
+    需要一个专门调度Segment的链接调度器
+    需要一个专门调度Segment的读写调度器
+    
+    
 
 
 
-UniDownloadState
-    下载状态：
-        Prepare
-        Downloading
-        PostDownloading
-        Paused
-        Cancelled
-        Completed
-        Failed
-        
-
-UniDownloadSpeedTracker : IDownloadSpeedTracker
-    下载速度报告
-
-## 下载任务
-
-UniDownloader
-    绑定task，开始、暂定、取消
-
-
-UniDownloaderManager : IDownloaderManager
-    管理UniDownloader，暴露给UniFileDownloader
-
-## 工厂类
-
-UniDownloaderManagerFactory : IDownloaderManagerFactory
-    创建IDownloadTaskManager
-
-UniDownloaderFactory : IDownloaderFactory
-    创建UniDownloader
-
-UniDownloadServiceFactory : IDownloadServiceFactory
-    创建IDownloadService
-
-## 协议类
-    IDownloadContext
-        md5、保存路径、分段数据
-    IDownloadService
-        主要是网络交互接口，比如获取remote length、标头分段、response Stream等等
-    IDownloader
-        主要是处理RemoteStream保存到本地
-
-
-Http
-    UniHttpDownloadContext : IDownloadContext
-    UniHttpDownloadService : IDownloadService
-    UniHttpDownloader : IDownloader
-Socket
-    UniSocketDownloadContext : IDownloadContext
-    UniSocketDownloadService : IDownloadService
-    UniSocketDownloader : IDownloader
-
-## 异常类
-
-UniRequesetConnectionException : Exception
-UniRequesetResponseException : Exception
-UniDownloadContextInvaildException : Exception
-...
-
-## 日志类
-
-UniDownloadLogger
-
-UniDownloadLogging : IDownloadLogging
-
-public void Start(){
-    GetLinkFileSizeAsync("123.com")
-}
-
-public static async Task<Result<long>> GetLinkFileSizeAsync(string link)
-{}

@@ -1,0 +1,199 @@
+using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Threading;
+
+namespace UniDownload.UniDownloadCore
+{
+    internal class UniDownloadRequestScheduler
+    {
+        private bool _stop;
+        private int _maxParallel;
+        private int _maxActiving;
+        private object _lock;
+        private List<UniDownloadRequest> _requests;
+        private List<UniDownloadRequest> _activeRequests;
+        private readonly ITaskProcessor _taskProcessor;
+        // request维护的operation ID字典
+        private Dictionary<int, UniDownloadRequest> _requestActions;
+        
+        // 维护文件下载完成的字典
+        private Dictionary<int, UniDownloadRequest> _requestsFinish;
+        
+        // 维护同一文件重复下载的字典
+        private Dictionary<string, UniDownloadRequest> _requestRepeats;
+
+        public UniDownloadRequestScheduler(ITaskProcessor processor)
+        {
+            _lock = new object();
+            _taskProcessor = processor;
+            _requests = new List<UniDownloadRequest>();
+            _activeRequests = new List<UniDownloadRequest>();
+            _requestActions = new Dictionary<int, UniDownloadRequest>();
+            _requestsFinish = new Dictionary<int, UniDownloadRequest>();
+            _requestRepeats = new Dictionary<string, UniDownloadRequest>();
+        }
+
+        public void Update()
+        {
+            if (_stop)
+            {
+                return;
+            }
+
+            CheckRequestLifeTime();
+            PushRequestToTask();
+        }
+
+
+        public int AddRequest(string fileName, bool isHighest, Action finish, Action<int> progress)
+        {
+            lock (_lock)
+            {
+                if (!_requestRepeats.TryGetValue(fileName, out var request))
+                {
+                    request = new UniDownloadRequest();
+                    request.Initialize(fileName, OnFinish);
+                    AddRequestToList(request);
+                    _requestRepeats[fileName] = request;
+                    _requestsFinish[request.FileID] = request;
+                }
+
+                request.SetPriority(isHighest);
+                int uuid = request.Register(finish, progress);
+                _requestActions[uuid] = request;
+                
+                return uuid;
+            }
+        }
+
+        public void RemoveRequest(int uuid)
+        {
+            lock (_lock)
+            {
+                if (_requestActions.TryGetValue(uuid, out var request))
+                {
+                    request.UnRegister(uuid);
+                }
+            }
+        }
+
+        public void Start()
+        {
+            _stop = false;
+        }
+        
+        public void Stop()
+        {
+            _stop = true;
+        }
+        
+        public void Dispose()
+        {
+            _requests = null;
+            _requestsFinish = null;
+            _requestActions = null;
+            _activeRequests = null;
+            _requestRepeats = null;
+        }
+
+        // 检查request生命周期是否有效，如果被标记了取消同时到期，就要回收该对象
+        private void CheckRequestLifeTime()
+        {
+            int lifeTime = UniDownloadTool.GetRequestLifeTime();
+            int time = UniDownloadTool.GetTime();
+            lock (_lock)
+            {
+                foreach (var request in _requests)
+                {
+                    if (request.IsCanceling && request.HotTime + lifeTime >= time)
+                    {
+                        request.LifeTimeExpired();
+                        _requests.Remove(request);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 把请求推送给任务层
+        private void PushRequestToTask()
+        {
+            lock (_lock)
+            {
+                if (_requests.Count < 1 || _maxActiving >= _maxParallel)
+                {
+                    return;
+                }
+
+                int available = _maxParallel - _maxActiving;
+                int toTakeNum = Math.Min(available, _requests.Count);
+                for (int i = 0; i < toTakeNum; i++)
+                {
+                    _activeRequests.Add(_requests[0]);
+                    _requests.RemoveAt(0);
+                }
+            }
+            
+            // 锁外安全推送
+            foreach (var request in _activeRequests)
+            {
+                if (_taskProcessor.CanAcceptRequest())
+                {
+                    _taskProcessor.ProcessRequest(request);
+                    Interlocked.Increment(ref _maxActiving);
+                }
+                else
+                {
+                    break;
+                }
+            }
+            _activeRequests.Clear();
+        }
+
+        // 请求加入下载列表并排序
+        private void AddRequestToList(UniDownloadRequest request)
+        {
+            _requests.Add(request);
+            _requests.Sort(SortRequestList);
+        }
+
+        // 在添加元素时进行一次排序，只是移除时list是自动补位的不需要再一次排序
+        private int SortRequestList(UniDownloadRequest a, UniDownloadRequest b)
+        {
+            // 比较高优先级
+            int priorityComparison = b.IsHighest.CompareTo(a.IsHighest);
+            if (priorityComparison != 0) return priorityComparison;
+    
+            // 如果优先级相同且都是高优先级，或都是 Activating 状态，比较 HotTime
+            if ((a.IsHighest && b.IsHighest) || 
+                (a.IsActivating && b.IsActivating))
+            {
+                return b.HotTime.CompareTo(a.HotTime);
+            }
+    
+            // 比较 Activating 状态
+            int stateComparison = (b.IsActivating).CompareTo(a.IsActivating);
+            if (stateComparison != 0) return stateComparison;
+    
+            // 最后比较 HotTime
+            return b.HotTime.CompareTo(a.HotTime);
+        }
+        
+        // request下载完成时、被回收时回调，就要从维护字典移除
+        private void OnFinish(int actionUuid)
+        {
+            lock (_lock)
+            {
+                _requestActions.Remove(actionUuid);
+                if (_requestsFinish.TryGetValue(actionUuid, out var request))
+                {
+                    _requestsFinish.Remove(actionUuid);
+                    _activeRequests.Remove(request);
+                    _requestRepeats.Remove(request.FileName);
+                    _maxActiving--;
+                }
+            }
+        }
+    }
+}
