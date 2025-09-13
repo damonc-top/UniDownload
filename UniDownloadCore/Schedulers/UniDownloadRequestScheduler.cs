@@ -5,6 +5,8 @@ using System.Threading;
 
 namespace UniDownload.UniDownloadCore
 {
+    // 请求层，维护的request对象,维护用户发起下载请求、取消请求
+    // 请求层，对请求进行热点排序，遴选高优先级请求推送给任务层
     internal class UniDownloadRequestScheduler
     {
         private bool _stop;
@@ -32,6 +34,7 @@ namespace UniDownload.UniDownloadCore
         {
             _lock = new object();
             _taskProcessor = processor;
+            _maxParallel = UniUtils.GetMaxParallel();
             _requests = new List<UniDownloadRequest>();
             _activeRequests = new List<UniDownloadRequest>();
             _requestActions = new Dictionary<int, UniDownloadRequest>();
@@ -105,8 +108,8 @@ namespace UniDownload.UniDownloadCore
         // 检查request的生命周期是否有效，如果被标记了取消并同时到期，就要回收该对象
         private void CheckRequestLifeTime()
         {
-            int lifeTime = UniDownloadTool.GetRequestLifeTime();
-            int time = UniDownloadTool.GetTime();
+            int lifeTime = UniUtils.GetRequestLifeTime();
+            int time = UniUtils.GetTime();
             lock (_lock)
             {
                 foreach (var request in _requests)

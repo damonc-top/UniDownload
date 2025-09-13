@@ -37,7 +37,7 @@ namespace UniDownload.UniDownloadCore
             _state = RequestState.Activating;
             _onRequestFinish = onRequestFinish;
             _requestOperations = new Dictionary<int, UniRequestOperation>();
-            _hotTime = UniDownloadTool.GetTime();
+            _hotTime = UniUtils.GetTime();
         }
 
         // 设置优先级
@@ -51,7 +51,7 @@ namespace UniDownload.UniDownloadCore
         public int Register(Action onFinish, Action<int> onProgress)
         {
             _refCount++;
-            _hotTime = UniDownloadTool.GetTime();
+            _hotTime = UniUtils.GetTime();
             if (_state != RequestState.Downloading)
             {
                 _state = RequestState.Activating;
@@ -81,7 +81,7 @@ namespace UniDownload.UniDownloadCore
             {
                 _state = IsDownloading ? _state : RequestState.Canceling;
                 _priority = IsDownloading ? UniRequestPriority.SilentMode : _priority;
-                _hotTime = UniDownloadTool.GetTime();
+                _hotTime = UniUtils.GetTime();
             }
         }
         

@@ -1,4 +1,4 @@
-﻿namespace UniDownload.UniDownloadCore.Common
+﻿namespace UniDownload.UniDownloadCore
 {
     public interface IPoolable
     {

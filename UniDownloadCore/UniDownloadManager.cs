@@ -16,7 +16,8 @@ namespace UniDownload.UniDownloadCore
         // 开始运行
         public void StartRun()
         {
-            
+            _requestScheduler.Start();
+            _taskScheduler.Start();
         }
 
         // 主线程调用
@@ -56,6 +57,9 @@ namespace UniDownload.UniDownloadCore
         {
             UniServiceContainer.Register(new UniMainThread());
             UniServiceContainer.Register(new UniDownloadSetting());
+            UniServiceContainer.Register(new UniDownloadNetwork());
+            UniServiceContainer.Register(new UniSegmentWorker());
+            UniServiceContainer.Register(new UniTaskScheduler());
         }
     }
 }
