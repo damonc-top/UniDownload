@@ -91,6 +91,7 @@ namespace UniDownload.UniDownloadCore
                     // 分段之后，再次根据分段数组第一维长度，确定分段并发数
                     MaxParallel = range.Value.GetLength(0);
                     SegmentRanges = range.Value;
+                    SegmentDownloaded = new long[MaxParallel];
                     finish();
                 }
             }

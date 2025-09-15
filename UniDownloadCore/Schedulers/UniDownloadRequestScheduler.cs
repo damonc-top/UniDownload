@@ -67,7 +67,7 @@ namespace UniDownload.UniDownloadCore
                     _requestsFinish[request.FileId] = request;
                 }
 
-                request.SetPriority(isHighest);
+                request.SetRequestMode(isHighest);
                 int uuid = request.Register(finish, progress);
                 _requestActions[uuid] = request;
                 

@@ -8,7 +8,10 @@ namespace UniDownload.UniDownloadCore
         // 文件段
         public long SegmentSize { get; set; } = 1 * 512 * 1024; // 512kb分割
 
+        // 文件段并发
         public int SegmentParallel { get; set; } = 2;
+
+        public int SegmentBuffSize { get; set; } = 4 * 1024; // 4k buffer
         
         // 下载超时时间
         public int TimeOut { get; set; } = 60 * 1000;

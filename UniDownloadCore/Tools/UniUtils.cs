@@ -86,6 +86,13 @@ namespace UniDownload.UniDownloadCore
             return UniServiceContainer.Get<UniDownloadSetting>().SegmentParallel;
         }
 
+        // 文件分段读写流缓冲
+        public static int GetSegmentBuffSize()
+        {
+            return UniServiceContainer.Get<UniDownloadSetting>().SegmentBuffSize;
+        }
+
+        // 文件分段名字
         public static string GetSegmentName(int segmentIndex)
         {
             return $"info_{segmentIndex}.bin";

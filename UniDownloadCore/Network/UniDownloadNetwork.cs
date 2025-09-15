@@ -63,14 +63,27 @@ namespace UniDownload.UniDownloadCore
         {
             using (HttpRequestMessage message = new HttpRequestMessage(HttpMethod.Get, fileName))
             {
-                message.Headers.Range = new RangeHeaderValue(startRange, endRange);
-                var response = await _client.SendAsync(message, HttpCompletionOption.ResponseContentRead, token);
-                response.EnsureSuccessStatusCode();
-                var result = await response.Content.ReadAsStreamAsync();
-                return Result<Stream>.Success(result);
+                try
+                {
+                    message.Headers.Range = new RangeHeaderValue(startRange, endRange);
+                    var response = await _client.SendAsync(message, HttpCompletionOption.ResponseContentRead, token);
+                    response.EnsureSuccessStatusCode();
+                    var result = await response.Content.ReadAsStreamAsync();
+                    return Result<Stream>.Success(result);
+                }                
+                catch (OperationCanceledException e)
+                {
+                    throw;
+                }
+                catch (HttpRequestException e)
+                {
+                    return Result<Stream>.Fail($"创建文件读取流网络请求失败，文件名: {fileName}, 错误: {e.Message}");
+                }
+                catch (Exception e)
+                {
+                    return Result<Stream>.Fail($"创建文件读取流异常，文件名: {fileName}, {e.Message}");
+                }
             }
-
-            return null;
         }
     }
 }

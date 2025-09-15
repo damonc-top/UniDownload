@@ -4,6 +4,7 @@ using System.Threading;
 
 namespace UniDownload.UniDownloadCore
 {
+    // 用户请求层
     internal class UniDownloadRequest : IDisposable
     {
         private int _fileId;
@@ -13,14 +14,14 @@ namespace UniDownload.UniDownloadCore
         private string _fileName;
         private RequestState _state;
         private Action<int> _onRequestFinish;
-        private UniRequestPriority _priority;
+        private UniRequestMode _mode;
         private Dictionary<int, UniRequestOperation> _requestOperations;
 
         public int HotTime => _hotTime;
         public int FileId => _fileId;
         public string FileName => _fileName;
         public RequestState State => _state;
-        public bool IsHighest => _priority == UniRequestPriority.ManualMode;
+        public bool IsHighest => _mode == UniRequestMode.ManualMode;
         public bool IsDownloading => _state == RequestState.Downloading;
         public bool IsActivating => _state == RequestState.Activating;
         public bool IsCanceling => _state == RequestState.Canceling;
@@ -41,9 +42,10 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 设置优先级
-        public void SetPriority(bool isHighest)
+        public void SetRequestMode(bool isHighest)
         {
-            _priority = isHighest ? UniRequestPriority.ManualMode : UniRequestPriority.SilentMode;
+            _mode = isHighest ? UniRequestMode.ManualMode : UniRequestMode.SilentMode;
+            _hotTime = UniUtils.GetTime();
         }
 
         // 注册下载回调，刷新热点时间与标记状态
@@ -80,7 +82,7 @@ namespace UniDownload.UniDownloadCore
             if (_refCount <= 0)
             {
                 _state = IsDownloading ? _state : RequestState.Canceling;
-                _priority = IsDownloading ? UniRequestPriority.SilentMode : _priority;
+                _mode = IsDownloading ? UniRequestMode.SilentMode : _mode;
                 _hotTime = UniUtils.GetTime();
             }
         }

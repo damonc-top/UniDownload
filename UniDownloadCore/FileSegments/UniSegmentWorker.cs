@@ -54,14 +54,13 @@ namespace UniDownload.UniDownloadCore
             return Result<string[]>.Success(segmentPaths);
         }
 
-        // 获取分段文件写入流，指定是否需要断点续传
+        // 获取分段文件写入流，设置断点续传
         public Result<Stream[]> GetSegmentStream(string[] segmentPaths, IDownloadContext context)
         {
-            long[,] ranges = context.SegmentRanges;
             long[] downloaded = context.SegmentDownloaded;
-            if (segmentPaths.Length != ranges.GetLength(0))
+            if (segmentPaths.Length != downloaded.GetLength(0))
             {
-                return Result<Stream[]>.Fail($"获取分段文件写入流失败：路径数组与range数组的长度不一致");
+                return Result<Stream[]>.Fail($"获取分段文件写入流失败：路径数组与已下载数组的长度不一致");
             }
             Stream[] writeSegmentStreams = new Stream[segmentPaths.Length];
             for (int i = 0; i < segmentPaths.Length; i++)
