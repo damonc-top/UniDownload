@@ -42,7 +42,11 @@ namespace UniDownload.UniDownloadCore
 
         public void RemoveRequest(int uuid)
         {
-            _requestScheduler.RemoveRequest(uuid);
+            var result = _requestScheduler.RemoveRequest(uuid);
+            if (result.IsSuccess)
+            {
+                _taskScheduler.StopTask(result.Value);    
+            }
         }
 
         // 初始化分层调度器

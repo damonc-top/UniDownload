@@ -1,7 +1,9 @@
 ﻿using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor.Localization.Plugins.XLIFF.V12;
 
 namespace UniDownload.UniDownloadCore
 {
@@ -49,9 +51,18 @@ namespace UniDownload.UniDownloadCore
             _fileInfoTempPath = Path.Combine(_fileTempRootPath, FileInfoName);
         }
 
+        // 开启装备下载上下文信息
         public void Start(Action prepareFinish)
         {
-            PrepareFileInfo(prepareFinish);
+            ReadLocalInfo();
+            if(_successGetFileInfo)
+            {
+                prepareFinish();
+                return;
+            }
+
+            Task.Factory.StartNew(ReadRemoteFileInfoAsync, prepareFinish, _cancellation.Token,
+                TaskCreationOptions.None, UniServiceContainer.Get<UniTaskScheduler>());
         }
 
         public void Stop()
@@ -64,25 +75,15 @@ namespace UniDownload.UniDownloadCore
             SegmentRanges = null;
         }
 
-        private void PrepareFileInfo(Action finish)
-        {
-            ReadLocalInfo();
-            if(_successGetFileInfo)
-            {
-                finish();
-                return;
-            }
-            Task.Factory.StartNew(ReadRemoteFileInfoAsync, finish, _cancellation.Token, TaskCreationOptions.None, UniServiceContainer.Get<UniTaskScheduler>());
-        }
-        
         // 获取远程文件长度，并划分好分段尺寸
         private async void ReadRemoteFileInfoAsync(object state)
         {
             try
             {
                 Action finish = state as Action;
+                UniDownloadNetwork network = UniServiceContainer.Get<UniDownloadNetwork>();
                 //获取远程头文件信息返回文件长度
-                var result = await UniServiceContainer.Get<UniDownloadNetwork>().GetRemoteFileLength(this, _cancellation.Token);
+                var result = await network.GetRemoteFileLength(this, _cancellation.Token);
                 if (result.IsSuccess)
                 {
                     TotalBytes = result.Value;
@@ -97,11 +98,15 @@ namespace UniDownload.UniDownloadCore
             }
             catch (OperationCanceledException e)
             {
-                UniLogger.Error($"获取远程文件被中断 文件={_fileName} {e.Message}");
+                UniLogger.Error($"获取远程文件被中断 文件={_fileName} 错误: {e.Message}");
+            }
+            catch (HttpRequestException e)
+            {
+                UniLogger.Error($"网络请求失败，文件名: {FileName}, 错误: {e.Message}");
             }
             catch (Exception e)
             {
-                UniLogger.Error($"获取远程文件长度错误 文件={_fileName} {e.Message}");
+                UniLogger.Error($"获取远程文件长度错误 文件={_fileName} 错误: {e.Message}");
             }
         }
         
@@ -148,6 +153,8 @@ namespace UniDownload.UniDownloadCore
             {
                 // 从断点文件恢复下载总量
                 TotalBytes = _fileInfo.TotalBytes;
+                // 下载并发
+                MaxParallel = _fileInfo.Donwloaded.Length;
                 // 从断点文件恢复自己的已下载量
                 SegmentDownloaded = _fileInfo.Donwloaded;
                 // 从断点文件恢复下载Range

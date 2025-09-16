@@ -28,6 +28,7 @@ namespace UniDownload.UniDownloadCore
         public void Stop()
         {
             _cancellation?.Cancel();
+            _cancellation?.Dispose();
         }
         
         // 创建文件分段对象
@@ -62,8 +63,19 @@ namespace UniDownload.UniDownloadCore
             Stream[] writeStreams = segmentStreams.Value;
             for (int i = 0; i < writeStreams.Length; i++)
             {
-                _fileSegmentThread[i].Start(writeStreams[i], _downloadContext, _cancellation.Token);
+                _fileSegmentThread[i].Start(writeStreams[i], _downloadContext.SegmentDownloaded[i],
+                    _downloadContext.SegmentRanges[i, 1], _cancellation.Token);
             }
+        }
+
+        private void OnSegmentComplete(int segmentIndex)
+        {
+            
+        }
+
+        private void OnSegmentFail(int segmentIndex)
+        {
+            
         }
     }
 }

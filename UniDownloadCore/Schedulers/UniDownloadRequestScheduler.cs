@@ -64,7 +64,7 @@ namespace UniDownload.UniDownloadCore
                     request.Initialize(fileName, OnFinish);
                     AddRequestToList(request);
                     _requestRepeats[fileName] = request;
-                    _requestsFinish[request.FileId] = request;
+                    _requestsFinish[request.RequestId] = request;
                 }
 
                 request.SetRequestMode(isHighest);
@@ -75,14 +75,18 @@ namespace UniDownload.UniDownloadCore
             }
         }
 
-        public void RemoveRequest(int uuid)
+        // 取消下载请求
+        public Result<int> RemoveRequest(int uuid)
         {
             lock (_lock)
             {
                 if (_requestActions.TryGetValue(uuid, out var request))
                 {
                     request.UnRegister(uuid);
+                    return Result<int>.Success(request.RequestId);
                 }
+
+                return Result<int>.Fail($"停止下载请求时没有找到对应的request对象 uuid{uuid}");
             }
         }
 

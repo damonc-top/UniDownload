@@ -9,20 +9,23 @@ namespace UniDownload.UniDownloadCore
     {
         private int BuffSize;
         private byte[] Buffer;
-        private int _byteRead;
+        private int _byteRecived;
         private string _fileName;
         private string _segmentPath;
         private int _segmentIndex;
         private Stream _readStream;
         private Stream _writeStream;
-        private IDownloadContext _downloadContext;
         private long _startRnage;
         private long _endRange;
+        private bool _isDownloading;
         private CancellationToken _token;
         private UniTaskScheduler _scheduler;
+
+        public int ByteRecived => _byteRecived;
         
         public UniDownloadSegment(int segmentIndex, string segmentPath)
         {
+            _isDownloading = false;
             BuffSize = UniUtils.GetSegmentBuffSize();
             Buffer = new byte[BuffSize];
             _scheduler = UniServiceContainer.Get<UniTaskScheduler>();
@@ -30,17 +33,18 @@ namespace UniDownload.UniDownloadCore
             _segmentPath = segmentPath;
         }
 
-        public void Start(Stream writeStream, IDownloadContext context, CancellationToken token)
+        public void Start(Stream writeStream, long startRange, long endRange, CancellationToken token)
         {
-            _byteRead = -1;
+            _isDownloading = true;
+            _byteRecived = 0;
             _token = token;
             _writeStream = writeStream;
-            _downloadContext = context;
-            _startRnage = context.SegmentDownloaded[_segmentIndex];
-            _endRange = context.SegmentRanges[_segmentIndex, 1];
+            _startRnage = startRange;
+            _endRange = endRange;
             Task.Factory.StartNew(DownloadSegments, token, TaskCreationOptions.None, _scheduler);
         }
 
+        // 下载分段文件数据
         private async void DownloadSegments()
         {
             try
@@ -54,7 +58,7 @@ namespace UniDownload.UniDownloadCore
                 }
 
                 _readStream = result.Value;
-                DownloadFile();
+                StartRead();
             }
             catch (OperationCanceledException e)
             {
@@ -62,22 +66,89 @@ namespace UniDownload.UniDownloadCore
             }
         }
 
-        private async void DownloadFile()
+        // 开始读取response stream流
+        private void StartRead()
         {
+            if(!_isDownloading || IsCancellationRequest())
+            {
+                return;
+            }
             try
             {
-                while (true)
-                {
-                    int bytesRead = await _readStream.ReadAsync(Buffer, 0, BuffSize, _token);
-                    if (bytesRead == 0) break;
-                    _byteRead += bytesRead;
-                    await _writeStream.WriteAsync(Buffer, 0, bytesRead, _token);
-                }
+                // 使用APM编程模型，不使用await和async，这里的buff空间较小，会频繁读写
+                // await之后线程释放要同步上下文。IO完成之后线程要恢复上下文，就会有线程切换开销
+                // 使用APM把IO操作放给IO线程(线程池)，不占用调度器线程
+                _readStream.BeginRead(Buffer, 0, BuffSize, OnReadComplete, null);
             }
             catch (Exception ex)
             {
-                UniLogger.Error($"下载段{_segmentIndex}出错: {ex.Message}");
+                _isDownloading = false;
             }
+        }
+        
+        private void OnReadComplete(IAsyncResult state)
+        {
+            if (IsCancellationRequest())
+            {
+                return;
+            }
+            try
+            {
+                int bytesRead = _readStream.EndRead(state);
+                if (bytesRead == 0)
+                {
+                    // 下载完成
+                    _isDownloading = false;
+                    OnDownloadCompleted(true);
+                    return;
+                }
+
+                _byteRecived += bytesRead;
+                // 开始写入
+                _writeStream.BeginWrite(Buffer, 0, bytesRead, OnWriteComplete, null);
+            }
+            catch (Exception e)
+            {
+                _isDownloading = false;
+            }
+        }
+
+        private void OnWriteComplete(IAsyncResult state)
+        {
+            if (IsCancellationRequest())
+            {
+                return;
+            }
+            try
+            {
+                if (_token.IsCancellationRequested)
+                {
+                    _isDownloading = false;
+                    return;
+                }
+                _writeStream.EndWrite(state);
+                StartRead();
+            }
+            catch (Exception e)
+            {
+                _isDownloading = false;
+                OnDownloadCompleted(false);
+            }
+        }
+
+        private bool IsCancellationRequest()
+        {
+            if (_token.IsCancellationRequested)
+            {
+                _isDownloading = false;
+                return true;
+            }
+            return false;
+        }
+
+        private void OnDownloadCompleted(bool isSuccess)
+        {
+            
         }
     }
 }

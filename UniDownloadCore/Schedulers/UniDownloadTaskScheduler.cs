@@ -17,26 +17,41 @@ namespace UniDownload.UniDownloadCore
         private Task _longTask;
         private SemaphoreSlim _semaphoreSlim;
         private CancellationTokenSource _cancellationTokenSource;
-        private BlockingCollection<UniDownloadTask> _downloadTasks;
+        // 所有任务的队列，需要排序
+        private BlockingCollection<UniDownloadTask> _taskQueue;
+        // 正在下载中的任务，最大max parallel个
+        private ConcurrentDictionary<int, UniDownloadTask> _downloading;
+        // 所有任务的保活队列，不再重新对同一个下载文件实例化Task
+        private ConcurrentDictionary<string, UniDownloadTask> _keepAliving;
 
         public UniDownloadTaskScheduler()
         {
             _maxParallel = 4;
             _semaphoreSlim = new SemaphoreSlim(_maxParallel);
-            _downloadTasks = new BlockingCollection<UniDownloadTask>();
+            _taskQueue = new BlockingCollection<UniDownloadTask>();
+            _downloading = new ConcurrentDictionary<int, UniDownloadTask>();
+            _keepAliving = new ConcurrentDictionary<string, UniDownloadTask>();
         }
         
         public void ProcessRequest(UniDownloadRequest request)
         {
-            var task = new UniDownloadTask(request);
-            task.OnCompleted = OnTaskCompleted;
-            task.OnCancelled = OnTaskCanceled;
-            _downloadTasks.Add(task);
+            if (_keepAliving.TryGetValue(request.FileName, out _))
+            {
+                UniLogger.Log("有下载任务正在保活队列，不再重新实例化，等待它二次启动即可");
+                return;
+            }
+            var task = new UniDownloadTask(request.FileName, request.RequestId)
+            {
+                OnCompleted = OnTaskCompleted,
+                OnCancelled = OnTaskCanceled
+            };
+            _taskQueue.Add(task);
+            _keepAliving.TryAdd(request.FileName, task);
         }
 
         public bool CanAcceptRequest()
         {
-            return _downloadTasks.Count < _maxParallel;
+            return _taskQueue.Count < _maxParallel;
         }
 
         public void Start()
@@ -62,6 +77,17 @@ namespace UniDownload.UniDownloadCore
             _cancellationTokenSource.Cancel();
         }
 
+        public void StopTask(int requestId)
+        {
+            if (_downloading.TryRemove(requestId, out var task))
+            {
+                task.Stop();
+                // 把task停止后，回收到任务队列
+                Task.Factory.StartNew(ReAddTask, task, _cancellationTokenSource.Token, TaskCreationOptions.None,
+                    UniServiceContainer.Get<UniTaskScheduler>());
+            }
+        }
+
         public void Dispose()
         {
             _semaphoreSlim.Dispose();
@@ -69,21 +95,43 @@ namespace UniDownload.UniDownloadCore
 
         private void LongRunningTask()
         {
-            foreach (var task in _downloadTasks.GetConsumingEnumerable(_cancellationTokenSource.Token))
+            foreach (var task in _taskQueue.GetConsumingEnumerable(_cancellationTokenSource.Token))
             {
                 _semaphoreSlim.Wait(_cancellationTokenSource.Token);
-                task.Start();
+                if (_downloading.TryAdd(task.Uuid, task))
+                {
+                    task.Start();    
+                }
+                else
+                {
+                    // TODO 如果这里_downloading.TryAdd异常失败，整体调度逻辑有严重异常，说明被重复添加重复下载
+                    UniLogger.Error("尝试开启下载任务时异常：添加到下载中队列失败");
+                    Thread.Sleep(1000);
+                    _taskQueue.Add(task);
+                }
             }
         }
         
         private void OnTaskCompleted(UniDownloadTask task)
         {
+            _keepAliving.TryRemove(task.FileName, out _);
             _semaphoreSlim.Release();
         }
 
         private void OnTaskCanceled(UniDownloadTask task)
         {
+            _keepAliving.TryRemove(task.FileName, out _);
             _semaphoreSlim.Release();
+        }
+
+        // 任务被回收
+        private void ReAddTask(object state)
+        {
+            // 延迟回收
+            Thread.Sleep(1000);
+            if (_cancellationTokenSource.IsCancellationRequested) return;
+            var task = state as UniDownloadTask;
+            _taskQueue.Add(task);
         }
     }
 }

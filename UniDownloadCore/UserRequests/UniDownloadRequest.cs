@@ -7,7 +7,7 @@ namespace UniDownload.UniDownloadCore
     // 用户请求层
     internal class UniDownloadRequest : IDisposable
     {
-        private int _fileId;
+        private int _requestId;
         private int _hotTime;
         private int _refCount;
         private int _progress;
@@ -18,7 +18,7 @@ namespace UniDownload.UniDownloadCore
         private Dictionary<int, UniRequestOperation> _requestOperations;
 
         public int HotTime => _hotTime;
-        public int FileId => _fileId;
+        public int RequestId => _requestId;
         public string FileName => _fileName;
         public RequestState State => _state;
         public bool IsHighest => _mode == UniRequestMode.ManualMode;
@@ -34,7 +34,7 @@ namespace UniDownload.UniDownloadCore
             _refCount = 1;
             _progress = 0;
             _fileName = fileName;
-            _fileId = UniUUID.NextID;
+            _requestId = UniUUID.NextID;
             _state = RequestState.Activating;
             _onRequestFinish = onRequestFinish;
             _requestOperations = new Dictionary<int, UniRequestOperation>();
@@ -112,7 +112,7 @@ namespace UniDownload.UniDownloadCore
         
         public void Dispose()
         {
-            _fileId = -1;
+            _requestId = -1;
             _requestOperations = null;
             _state = RequestState.Disposed;
         }

@@ -48,11 +48,11 @@ namespace UniDownload.UniDownloadCore
                 }
                 catch (HttpRequestException e)
                 {
-                    return Result<long>.Fail($"网络请求失败，文件名: {context.FileName}, 错误: {e.Message}");
+                    throw;
                 }
                 catch (Exception e)
                 {
-                    return Result<long>.Fail($"获取文件异常 文件名 = {context.FileName} Exception = {e.Message}");
+                    throw;
                 }
             }
         }
