@@ -13,7 +13,6 @@ namespace UniDownload.UniDownloadCore
         private int _progress;
         private string _fileName;
         private RequestState _state;
-        private Action<int> _onRequestFinish;
         private UniRequestMode _mode;
         private Dictionary<int, UniRequestOperation> _requestOperations;
 
@@ -29,14 +28,13 @@ namespace UniDownload.UniDownloadCore
         public UniDownloadRequest() { }
 
         // 初始化
-        public void Initialize(string fileName, Action<int> onRequestFinish)
+        public void Initialize(string fileName)
         {
             _refCount = 1;
             _progress = 0;
             _fileName = fileName;
             _requestId = UniUUID.NextID;
             _state = RequestState.Activating;
-            _onRequestFinish = onRequestFinish;
             _requestOperations = new Dictionary<int, UniRequestOperation>();
             _hotTime = UniUtils.GetTime();
         }
@@ -106,7 +104,7 @@ namespace UniDownload.UniDownloadCore
             // TODO 对象自身的回收逻辑
             foreach (var operation in _requestOperations)
             {
-                _onRequestFinish(operation.Value.Uuid);
+                
             }
         }
         
@@ -123,7 +121,6 @@ namespace UniDownload.UniDownloadCore
             foreach (var operation in _requestOperations)
             {
                 operation.Value.OnFinish();
-                _onRequestFinish(operation.Value.Uuid);
             }
         }
 

@@ -37,6 +37,7 @@ namespace UniDownload.UniDownloadCore
             _maxParallel = UniUtils.GetMaxParallel();
             _requests = new List<UniDownloadRequest>();
             _activeRequests = new List<UniDownloadRequest>();
+            //这次创建了三个字典，主要目的是想要快速查找，避免全量遍历request列表
             _requestActions = new Dictionary<int, UniDownloadRequest>();
             _requestsFinish = new Dictionary<int, UniDownloadRequest>();
             _requestRepeats = new Dictionary<string, UniDownloadRequest>();
@@ -61,7 +62,7 @@ namespace UniDownload.UniDownloadCore
                 if (!_requestRepeats.TryGetValue(fileName, out var request))
                 {
                     request = new UniDownloadRequest();
-                    request.Initialize(fileName, OnFinish);
+                    request.Initialize(fileName);
                     AddRequestToList(request);
                     _requestRepeats[fileName] = request;
                     _requestsFinish[request.RequestId] = request;
@@ -76,17 +77,16 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 取消下载请求
-        public Result<int> RemoveRequest(int uuid)
+        public void RemoveRequest(int uuid)
         {
             lock (_lock)
             {
                 if (_requestActions.TryGetValue(uuid, out var request))
                 {
                     request.UnRegister(uuid);
-                    return Result<int>.Success(request.RequestId);
+                    _requestActions.Remove(uuid);
+                    _requestsFinish.Remove(uuid);
                 }
-
-                return Result<int>.Fail($"停止下载请求时没有找到对应的request对象 uuid{uuid}");
             }
         }
 
@@ -193,18 +193,13 @@ namespace UniDownload.UniDownloadCore
         }
         
         // request下载完成时、被回收时回调，就要从维护字典移除
-        private void OnFinish(int actionUuid)
+        private void OnFinish(UniDownloadRequest request)
         {
             lock (_lock)
             {
-                _requestActions.Remove(actionUuid);
-                if (_requestsFinish.TryGetValue(actionUuid, out var request))
-                {
-                    _requestsFinish.Remove(actionUuid);
-                    _activeRequests.Remove(request);
-                    _requestRepeats.Remove(request.FileName);
-                    _maxActivating--;
-                }
+                _activeRequests.Remove(request);
+                _requestRepeats.Remove(request.FileName);
+                _maxActivating--;
             }
         }
     }
