@@ -24,6 +24,7 @@ namespace UniDownload.UniDownloadCore
         public bool IsDownloading => _state == RequestState.Downloading;
         public bool IsActivating => _state == RequestState.Activating;
         public bool IsCanceling => _state == RequestState.Canceling;
+        public Dictionary<int, UniRequestOperation> Operations => _requestOperations;
         
         public UniDownloadRequest() { }
 

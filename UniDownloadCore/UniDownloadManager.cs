@@ -35,11 +35,13 @@ namespace UniDownload.UniDownloadCore
             _taskScheduler.Stop();
         }
 
+        // 添加请求
         public int AddRequest(string fileName, bool isHighest, Action finish, Action<int> progress)
         {
             return _requestScheduler.AddRequest(fileName, isHighest, finish, progress);
         }
 
+        // 移除请求
         public void RemoveRequest(int uuid)
         {
             _requestScheduler.RemoveRequest(uuid);

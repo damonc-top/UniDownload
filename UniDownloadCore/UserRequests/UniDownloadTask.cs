@@ -13,7 +13,7 @@ namespace UniDownload.UniDownloadCore
         // 下载任务状态
         private UniDownloadState _state;
 
-        public int Uuid { get; private set; }
+        public int RequestId { get; private set; }
         public string FileName { get; private set; }
         public Action<UniDownloadTask> OnCompleted;
         public Action<UniDownloadTask> OnCancelled;
@@ -44,7 +44,7 @@ namespace UniDownload.UniDownloadCore
         {
             _state = UniDownloadState.Prepare;
             FileName = fileName;
-            Uuid = requestId;
+            RequestId = requestId;
         }
 
         // 开始任务执行请求下载

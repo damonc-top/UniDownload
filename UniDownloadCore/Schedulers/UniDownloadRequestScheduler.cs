@@ -23,10 +23,9 @@ namespace UniDownload.UniDownloadCore
         
         // operation ID映射request
         private Dictionary<int, UniDownloadRequest> _requestActions;
-        
-        // file ID映射request
-        private Dictionary<int, UniDownloadRequest> _requestsFinish;
-        
+
+        private Dictionary<int, UniDownloadRequest> _requestFinish;
+
         // file Name映射request
         private Dictionary<string, UniDownloadRequest> _requestRepeats;
 
@@ -39,7 +38,7 @@ namespace UniDownload.UniDownloadCore
             _activeRequests = new List<UniDownloadRequest>();
             //这次创建了三个字典，主要目的是想要快速查找，避免全量遍历request列表
             _requestActions = new Dictionary<int, UniDownloadRequest>();
-            _requestsFinish = new Dictionary<int, UniDownloadRequest>();
+            _requestFinish = new Dictionary<int, UniDownloadRequest>();
             _requestRepeats = new Dictionary<string, UniDownloadRequest>();
         }
 
@@ -59,13 +58,14 @@ namespace UniDownload.UniDownloadCore
         {
             lock (_lock)
             {
+                // 是重复请求，只刷新hotTime和优先级
+                // 全新请求，初始化并刷新hotTime和优先级，然后排序
                 if (!_requestRepeats.TryGetValue(fileName, out var request))
                 {
                     request = new UniDownloadRequest();
                     request.Initialize(fileName);
                     AddRequestToList(request);
                     _requestRepeats[fileName] = request;
-                    _requestsFinish[request.RequestId] = request;
                 }
 
                 request.SetRequestMode(isHighest);
@@ -85,7 +85,6 @@ namespace UniDownload.UniDownloadCore
                 {
                     request.UnRegister(uuid);
                     _requestActions.Remove(uuid);
-                    _requestsFinish.Remove(uuid);
                 }
             }
         }
@@ -93,19 +92,21 @@ namespace UniDownload.UniDownloadCore
         public void Start()
         {
             _stop = false;
+            _taskProcessor.OnFinish += OnFinish;
         }
         
         public void Stop()
         {
             _stop = true;
+            _taskProcessor.OnFinish -= OnFinish;
         }
         
         public void Dispose()
         {
             _requests = null;
-            _requestsFinish = null;
             _requestActions = null;
             _activeRequests = null;
+            _requestFinish = null;
             _requestRepeats = null;
         }
 
@@ -152,7 +153,7 @@ namespace UniDownload.UniDownloadCore
             {
                 if (_taskProcessor.CanAcceptRequest())
                 {
-                    _taskProcessor.ProcessRequest(request);
+                    _taskProcessor.ProcessRequest(request.FileName, request.RequestId);
                     Interlocked.Increment(ref _maxActivating);
                 }
                 else
@@ -192,14 +193,22 @@ namespace UniDownload.UniDownloadCore
             return b.HotTime.CompareTo(a.HotTime);
         }
         
-        // request下载完成时、被回收时回调，就要从维护字典移除
-        private void OnFinish(UniDownloadRequest request)
+        // request下载完成时，就要从维护字典移除
+        private void OnFinish(int requestId)
         {
             lock (_lock)
             {
-                _activeRequests.Remove(request);
-                _requestRepeats.Remove(request.FileName);
-                _maxActivating--;
+                if (_requestFinish.TryGetValue(requestId, out var request))
+                {
+                    _requestFinish.Remove(requestId);
+                    _requestRepeats.Remove(request.FileName);
+                    foreach (var operation in request.Operations)
+                    {
+                        _requestActions.Remove(operation.Key);
+                    }
+                    request.OnFinish();
+                    _maxActivating--;    
+                }
             }
         }
     }

@@ -3,6 +3,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using UnityEditor.Localization.Plugins.XLIFF.V12;
 
 namespace UniDownload.UniDownloadCore
 {
@@ -20,6 +21,8 @@ namespace UniDownload.UniDownloadCore
         // 所有任务的队列，需要排序
         private BlockingCollection<UniDownloadTask> _taskQueue;
 
+        public event Action<int> OnFinish;
+        
         public UniDownloadTaskScheduler()
         {
             _maxParallel = 4;
@@ -27,9 +30,9 @@ namespace UniDownload.UniDownloadCore
             _taskQueue = new BlockingCollection<UniDownloadTask>();
         }
         
-        public void ProcessRequest(UniDownloadRequest request)
+        public void ProcessRequest(string fileName, int requestId)
         {
-            var task = new UniDownloadTask(request.FileName, request.RequestId)
+            var task = new UniDownloadTask(fileName, requestId)
             {
                 OnCompleted = OnTaskCompleted,
                 OnCancelled = OnTaskCanceled
@@ -81,6 +84,7 @@ namespace UniDownload.UniDownloadCore
         
         private void OnTaskCompleted(UniDownloadTask task)
         {
+            OnFinish(task.RequestId);
             _semaphoreSlim.Release();
         }
 
