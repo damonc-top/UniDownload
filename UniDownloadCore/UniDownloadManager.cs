@@ -23,8 +23,8 @@ namespace UniDownload.UniDownloadCore
         // 主线程调用
         public void Update()
         {
-            _requestScheduler.Update();
             _taskScheduler.Update();
+            _requestScheduler.Update();
             UniServiceContainer.Get<UniMainThread>().Update();
         }
 

@@ -22,6 +22,7 @@ namespace UniDownload.UniDownloadCore
     {
         private const string FileInfoName = "Info";
         private string _md5;
+        private int _requestId;
         private string _fileName;
         private UniFileInfo _fileInfo;
         private string _fileBaseRootPath;
@@ -30,6 +31,7 @@ namespace UniDownload.UniDownloadCore
         private bool _successGetFileInfo;
         private CancellationTokenSource _cancellation;
 
+        public int RequestId => _requestId;
         public string FileName => _fileName;
         public string FileBasePath => _fileBaseRootPath;
         public string FileTempPath => _fileTempRootPath;
@@ -40,9 +42,10 @@ namespace UniDownload.UniDownloadCore
         public long[] SegmentDownloaded { get; private set; }
         public long[,] SegmentRanges { get; private set; }
 
-        public UniDownloadContext(string fileName)
+        public UniDownloadContext(string fileName, int requestId)
         {
             _fileName = fileName;
+            _requestId = requestId;
             MaxParallel = UniUtils.GetSegmentParallel();
             _cancellation = new CancellationTokenSource(UniUtils.GetTimeOut());
             _md5 = UniUtils.GetFileNameMD5(FileName);
@@ -52,12 +55,12 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 开启装备下载上下文信息
-        public void Start(Action prepareFinish)
+        public void Start(Action<bool> prepareFinish)
         {
             ReadLocalInfo();
             if(_successGetFileInfo)
             {
-                prepareFinish();
+                prepareFinish(true);
                 return;
             }
 
@@ -78,9 +81,9 @@ namespace UniDownload.UniDownloadCore
         // 获取远程文件长度，并划分好分段尺寸
         private async void ReadRemoteFileInfoAsync(object state)
         {
+            Action<bool> finish = state as Action<bool>;
             try
             {
-                Action finish = state as Action;
                 UniDownloadNetwork network = UniServiceContainer.Get<UniDownloadNetwork>();
                 //获取远程头文件信息返回文件长度
                 var result = await network.GetRemoteFileLength(this, _cancellation.Token);
@@ -93,7 +96,8 @@ namespace UniDownload.UniDownloadCore
                     MaxParallel = range.Value.GetLength(0);
                     SegmentRanges = range.Value;
                     SegmentDownloaded = new long[MaxParallel];
-                    finish();
+                    finish(true);
+                    return;
                 }
             }
             catch (OperationCanceledException e)
@@ -108,6 +112,8 @@ namespace UniDownload.UniDownloadCore
             {
                 UniLogger.Error($"获取远程文件长度错误 文件={_fileName} 错误: {e.Message}");
             }
+
+            finish(false);
         }
         
         // 从本地还原文件分段断点续传信息

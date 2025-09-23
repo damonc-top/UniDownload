@@ -14,9 +14,9 @@ namespace UniDownload.UniDownloadCore
             {
                 return Result<long[,]>.Fail($"文件分割错误， size={fileLength} maxParallel={maxParallel}");
             }
-
-            long standard = UniServiceContainer.Get<UniDownloadSetting>().SegmentSize;
-            int segmentNum = (int)Math.Ceiling((double)fileLength / standard);
+            
+            long standardSize = UniServiceContainer.Get<UniDownloadSetting>().SegmentSize;
+            int segmentNum = (int)Math.Ceiling((double)fileLength / standardSize);
             int parallel = Math.Min(segmentNum, maxParallel);
             long segmentSize = fileLength / parallel;
             long remainSize = fileLength % parallel;
@@ -53,7 +53,7 @@ namespace UniDownload.UniDownloadCore
             }
             return Result<string[]>.Success(segmentPaths);
         }
-
+        
         // 获取分段文件写入流，设置断点续传
         public Result<Stream[]> GetSegmentStream(string[] segmentPaths, IDownloadContext context)
         {

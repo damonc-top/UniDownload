@@ -20,23 +20,19 @@ namespace UniDownload.UniDownloadCore
         private CancellationTokenSource _cancellationTokenSource;
         // 所有任务的队列，需要排序
         private BlockingCollection<UniDownloadTask> _taskQueue;
-
-        public event Action<int> OnFinish;
+        private ConcurrentDictionary<int, UniDownloadTask> _downloadingTasks;
         
         public UniDownloadTaskScheduler()
         {
             _maxParallel = 4;
             _semaphoreSlim = new SemaphoreSlim(_maxParallel);
             _taskQueue = new BlockingCollection<UniDownloadTask>();
+            _downloadingTasks = new ConcurrentDictionary<int, UniDownloadTask>();
         }
         
         public void ProcessRequest(string fileName, int requestId)
         {
-            var task = new UniDownloadTask(fileName, requestId)
-            {
-                OnCompleted = OnTaskCompleted,
-                OnCancelled = OnTaskCanceled
-            };
+            var task = new UniDownloadTask(fileName, requestId);
             _taskQueue.Add(task);
         }
 
@@ -47,6 +43,7 @@ namespace UniDownload.UniDownloadCore
 
         public void Start()
         {
+            UniDownloadEventBus.DownloadTaskCompleted += OnTaskFinish;
             if (_cancellationTokenSource.IsCancellationRequested)
             {
                 _cancellationTokenSource.Dispose();
@@ -64,7 +61,7 @@ namespace UniDownload.UniDownloadCore
 
         public void Stop()
         {
-            //_longTask.Status
+            UniDownloadEventBus.DownloadTaskCompleted -= OnTaskFinish;
             _cancellationTokenSource.Cancel();
         }
 
@@ -77,20 +74,40 @@ namespace UniDownload.UniDownloadCore
         {
             foreach (var task in _taskQueue.GetConsumingEnumerable(_cancellationTokenSource.Token))
             {
-                _semaphoreSlim.Wait(_cancellationTokenSource.Token);
-                task.Start();
+                if (_downloadingTasks.TryAdd(task.RequestId, task))
+                {
+                    _semaphoreSlim.Wait(_cancellationTokenSource.Token);
+                    task.Start();    
+                }
+                else
+                {
+                    UniLogger.Error("添加下载失败");
+                }
             }
         }
-        
-        private void OnTaskCompleted(UniDownloadTask task)
+
+        private void OnTaskFinish(object sender, UniDownloadEventArgs args)
         {
-            OnFinish(task.RequestId);
             _semaphoreSlim.Release();
+            if (!_downloadingTasks.TryRemove(args.RequestId, out UniDownloadTask task))
+            {
+                UniLogger.Error($"下载完成回调没有找到处于下载队列的task {args.RequestId}");
+                return;
+            }
+
+            if (args.ErrorMessage != null)
+            {
+                OnTaskFailed(task, args.ErrorMessage);
+                return;
+            }
+
+            task.OnTaskCompleted();
         }
 
-        private void OnTaskCanceled(UniDownloadTask task)
+        private void OnTaskFailed(UniDownloadTask task, string errorMessage)
         {
-            _semaphoreSlim.Release();
+            UniLogger.Error(errorMessage);
+            task.OnTaskFailed();
         }
     }
 }

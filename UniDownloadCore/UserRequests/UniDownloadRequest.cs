@@ -80,6 +80,7 @@ namespace UniDownload.UniDownloadCore
             _requestOperations.Remove(uuid);
             if (_refCount <= 0)
             {
+                _refCount = 0;
                 _state = IsDownloading ? _state : RequestState.Canceling;
                 _mode = IsDownloading ? UniRequestMode.SilentMode : _mode;
                 _hotTime = UniUtils.GetTime();
@@ -90,6 +91,11 @@ namespace UniDownload.UniDownloadCore
         public void OnFinish()
         {
             UniServiceContainer.Get<UniMainThread>().Enqueue(OnMainThreadFinish);
+        }
+
+        public void OnFailed()
+        {
+            
         }
         
         // 下载线程回调

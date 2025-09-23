@@ -24,6 +24,7 @@ namespace UniDownload.UniDownloadCore
         // operation ID映射request
         private Dictionary<int, UniDownloadRequest> _requestActions;
 
+        // request ID映射request
         private Dictionary<int, UniDownloadRequest> _requestFinish;
 
         // file Name映射request
@@ -49,7 +50,7 @@ namespace UniDownload.UniDownloadCore
                 return;
             }
 
-            CheckRequestLifeTime();
+            // CheckRequestLifeTime();
             PushRequestToTask();
         }
 
@@ -64,14 +65,14 @@ namespace UniDownload.UniDownloadCore
                 {
                     request = new UniDownloadRequest();
                     request.Initialize(fileName);
-                    AddRequestToList(request);
+                    _requests.Add(request);
                     _requestRepeats[fileName] = request;
                 }
 
                 request.SetRequestMode(isHighest);
                 int uuid = request.Register(finish, progress);
                 _requestActions[uuid] = request;
-                
+                _requests.Sort(SortRequestList);
                 return uuid;
             }
         }
@@ -91,14 +92,16 @@ namespace UniDownload.UniDownloadCore
 
         public void Start()
         {
+            UniDownloadEventBus.DownloadRequestCompleted += OnRequestComplete;
+            UniDownloadEventBus.DownloadProgress += OnRequestProgress;
             _stop = false;
-            _taskProcessor.OnFinish += OnFinish;
         }
         
         public void Stop()
         {
+            UniDownloadEventBus.DownloadRequestCompleted -= OnRequestComplete;
+            UniDownloadEventBus.DownloadProgress -= OnRequestProgress;
             _stop = true;
-            _taskProcessor.OnFinish -= OnFinish;
         }
         
         public void Dispose()
@@ -164,13 +167,6 @@ namespace UniDownload.UniDownloadCore
             _activeRequests.Clear();
         }
 
-        // 请求加入下载列表并排序
-        private void AddRequestToList(UniDownloadRequest request)
-        {
-            _requests.Add(request);
-            _requests.Sort(SortRequestList);
-        }
-
         // 在添加元素时进行一次排序，只是移除时list是自动补位的不需要再一次排序
         private int SortRequestList(UniDownloadRequest a, UniDownloadRequest b)
         {
@@ -194,10 +190,11 @@ namespace UniDownload.UniDownloadCore
         }
         
         // request下载完成时，就要从维护字典移除
-        private void OnFinish(int requestId)
+        private void OnRequestComplete(object sender, UniDownloadEventArgs args)
         {
             lock (_lock)
             {
+                int requestId = args.RequestId;
                 if (_requestFinish.TryGetValue(requestId, out var request))
                 {
                     _requestFinish.Remove(requestId);
@@ -206,8 +203,32 @@ namespace UniDownload.UniDownloadCore
                     {
                         _requestActions.Remove(operation.Key);
                     }
+                    _maxActivating--;
+                    if (args.ErrorMessage != null)
+                    {
+                        OnRequestFailed(request, args.ErrorMessage);
+                        return;
+                    }
                     request.OnFinish();
-                    _maxActivating--;    
+                }
+            }
+        }
+
+        // request下载失败，回收延时重启推送
+        private void OnRequestFailed(UniDownloadRequest request, string errorMessage)
+        {
+            UniLogger.Error(errorMessage);
+            request.OnFailed();
+        }
+
+        private void OnRequestProgress(object sender, UniDownloadProgressInfo info)
+        {
+            lock (_lock)
+            {
+                int requestId = info.RequestId;
+                if (_requestFinish.TryGetValue(requestId, out var request))
+                {
+                    request.OnProgress(info.Progress);
                 }
             }
         }

@@ -3,6 +3,11 @@ using System.Collections.Concurrent;
 
 namespace UniDownload.UniDownloadCore
 {
+    internal static class ServiceCache<T>
+    {
+        public static Type Inst = typeof(T);
+    }
+    
     /// <summary>
     /// 服务容器注入全局配置
     /// </summary>
@@ -13,12 +18,12 @@ namespace UniDownload.UniDownloadCore
 
         public static void Register<T>(T instance)
         {
-            _service[typeof(T)] = instance;
+            _service[ServiceCache<T>.Inst] = instance;
         }
 
         public static T Get<T>()
         {
-            if(_service.TryGetValue(typeof(T), out var instance))
+            if(_service.TryGetValue(ServiceCache<T>.Inst, out var instance))
             {
                 return (T)instance;
             }

@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,7 +11,7 @@ namespace UniDownload.UniDownloadCore
         private IDownloadContext _downloadContext;
         private string[] _segmentTempPaths;
         private UniDownloadSegment[] _fileSegmentThread;
-
+        
         public UniDownloadSegmentManager(IDownloadContext context)
         {
             _downloadContext = context;
@@ -20,6 +21,7 @@ namespace UniDownload.UniDownloadCore
         // 开始任务下载
         public void Start()
         {
+            UniDownloadEventBus.SegmentCompleted += OnSegmentComplete;
             _cancellation = new CancellationTokenSource();
             StartDownloadSegment();
         }
@@ -27,6 +29,7 @@ namespace UniDownload.UniDownloadCore
         // 停止任务下载
         public void Stop()
         {
+            UniDownloadEventBus.SegmentCompleted -= OnSegmentComplete;
             _cancellation?.Cancel();
             _cancellation?.Dispose();
         }
@@ -68,14 +71,26 @@ namespace UniDownload.UniDownloadCore
             }
         }
 
-        private void OnSegmentComplete(int segmentIndex)
+        private void OnSegmentComplete(object sender, UniDownloadEventArgs args)
         {
+            if (args.RequestId != _downloadContext.RequestId) return;
+            if (args.ErrorMessage != null)
+            {
+                OnSegmentFailed(args.RequestId, args.ErrorMessage);
+                return;
+            }
             
+            // TODO 成功发送
+            UniDownloadEventBus.RaiseDownloadTaskCompleted(_downloadContext.RequestId, _downloadContext.FileName, null);
         }
 
-        private void OnSegmentFail(int segmentIndex)
+        private void OnSegmentFailed(int segmentIndex, string errorMessage)
         {
+            UniLogger.Error(errorMessage);
             
+            // TODO 失败次数达到上限抛出错误回调
+            UniDownloadEventBus.RaiseDownloadTaskCompleted(
+                _downloadContext.RequestId, _downloadContext.FileName, errorMessage);
         }
     }
 }

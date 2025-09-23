@@ -15,8 +15,6 @@ namespace UniDownload.UniDownloadCore
 
         public int RequestId { get; private set; }
         public string FileName { get; private set; }
-        public Action<UniDownloadTask> OnCompleted;
-        public Action<UniDownloadTask> OnCancelled;
 
         public UniDownloadState State
         {
@@ -26,13 +24,11 @@ namespace UniDownload.UniDownloadCore
                 switch (_state)
                 {
                     case UniDownloadState.Finished:
-                        OnCompleted?.Invoke(this);
+                        // TODO 合并文件
                         break;
                     case UniDownloadState.Stopped:
-                        OnCancelled?.Invoke(this);                        
-                        break;
                     case UniDownloadState.Failure:
-                        // TODO 失败的处理。任务层的失败和下载层的失败分开处理
+                        // TODO 写入分段信息
                         break;
                 }
 
@@ -51,7 +47,7 @@ namespace UniDownload.UniDownloadCore
         public void Start()
         {
             _state = UniDownloadState.Querying;
-            _downloadContext = new UniDownloadContext(FileName);
+            _downloadContext = new UniDownloadContext(FileName, RequestId);
             _downloadContext.Start(PrepareDownloadContext);
         }
 
@@ -59,21 +55,32 @@ namespace UniDownload.UniDownloadCore
         public void Stop()
         {
             _state = UniDownloadState.Stopped;
-            _downloadContext.Stop();
+            _downloadContext?.Stop();
             _segmentManager?.Stop();
         }
 
         // 准备下载上下文数据，从本地断点文件还原分段数据，如果没有从远程文件获取创建分段数据
-        private void PrepareDownloadContext()
+        private void PrepareDownloadContext(bool isPrepared)
         {
+            if (!isPrepared)
+            {
+                // 准备上下文数据失败，远程head size获取失败了
+                OnTaskFailed();
+                return;
+            }
             _state = UniDownloadState.Downloading;
             _segmentManager = new UniDownloadSegmentManager(_downloadContext);
             _segmentManager.Start();
         }
 
-        private void OnDownloadComplete()
+        public void OnTaskCompleted()
         {
             _state = UniDownloadState.Finished;
+        }
+
+        public void OnTaskFailed()
+        {
+            _state = UniDownloadState.Failure;
         }
     }
 }

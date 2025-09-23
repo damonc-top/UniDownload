@@ -5,6 +5,7 @@ namespace UniDownload.UniDownloadCore
 {
     internal interface IDownloadContext
     {
+        public int RequestId { get; }
         public string FileName { get; }
         public string FileBasePath { get; }
         public string FileTempPath { get; }
@@ -15,7 +16,7 @@ namespace UniDownload.UniDownloadCore
         public long[] SegmentDownloaded { get;}
         public long[,] SegmentRanges { get; }
 
-        public void Start(Action prepareFinish);
+        public void Start(Action<bool> prepareFinish);
         public void Stop();
     }
 }
