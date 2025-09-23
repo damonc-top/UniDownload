@@ -72,5 +72,58 @@ namespace UniDownload.UniDownloadCore
 
             return Result<Stream[]>.Success(writeSegmentStreams);
         }
+
+        // 分段文件合并
+        public Result<bool> MergeSegmentFiles(string fileName, string[] segmentPaths)
+        {
+            int length = segmentPaths.Length;
+            string targetFile = Path.Combine(UniUtils.GetBaseSavePath(), fileName);
+            if (length == 1)
+            {
+                File.Move(segmentPaths[0], targetFile);
+                CleanupFiles(segmentPaths);
+                return Result<bool>.Success(true);
+            }
+
+            try
+            {
+                using FileStream final = new FileStream(targetFile, FileMode.Create, FileAccess.Write);
+                byte[] buff = new  byte[1024];
+                for (int i = 0; i < length; i++)
+                {
+                    int readBytes;
+                    using FileStream segment = new FileStream(segmentPaths[i], FileMode.Open, FileAccess.Read);
+                    do
+                    {
+                        readBytes = segment.Read(buff, 0, buff.Length);
+                        final.Write(buff, 0, readBytes);
+                    } while (readBytes > 0);
+                }
+                final.Flush();
+                final.Close();
+                CleanupFiles(segmentPaths);
+                return Result<bool>.Success(true);
+            }
+            catch (Exception e)
+            {
+                return Result<bool>.Fail($"{fileName} 合并文件失败 {e.Message}");
+            }
+        }
+
+        // 清理下载的缓存文件
+        private void CleanupFiles(string[] paths)
+        {
+            try
+            {
+                foreach (string filePath in paths)
+                {
+                    File.Delete(filePath);
+                }
+            }
+            catch (Exception)
+            {
+                return;
+            }
+        }
     }
 }

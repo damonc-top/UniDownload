@@ -3,7 +3,6 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor.Localization.Plugins.XLIFF.V12;
 
 namespace UniDownload.UniDownloadCore
 {
@@ -46,17 +45,19 @@ namespace UniDownload.UniDownloadCore
         {
             _fileName = fileName;
             _requestId = requestId;
-            MaxParallel = UniUtils.GetSegmentParallel();
-            _cancellation = new CancellationTokenSource(UniUtils.GetTimeOut());
             _md5 = UniUtils.GetFileNameMD5(FileName);
+            MaxParallel = UniUtils.GetSegmentParallel();
+            _fileInfoTempPath = Path.Combine(_fileTempRootPath, FileInfoName);
             _fileBaseRootPath = Path.Combine(UniUtils.GetBaseSavePath(), _md5);
             _fileTempRootPath = Path.Combine(UniUtils.GetTempSavePath(), _md5);
-            _fileInfoTempPath = Path.Combine(_fileTempRootPath, FileInfoName);
+            _cancellation = new CancellationTokenSource(UniUtils.GetTimeOut());
         }
 
         // 开启装备下载上下文信息
         public void Start(Action<bool> prepareFinish)
         {
+            UniUtils.EnsureDirectoryExists(_fileBaseRootPath);
+            UniUtils.EnsureDirectoryExists(_fileTempRootPath);
             ReadLocalInfo();
             if(_successGetFileInfo)
             {
@@ -75,7 +76,8 @@ namespace UniDownload.UniDownloadCore
 
         public void Dispose()
         {
-            SegmentRanges = null;
+            _cancellation.Dispose();
+            Directory.Delete(_fileTempRootPath, true);
         }
 
         // 获取远程文件长度，并划分好分段尺寸
@@ -120,11 +122,6 @@ namespace UniDownload.UniDownloadCore
         private void ReadLocalInfo()
         {
             // 如果目录或者info文件不存在表示没有断点文件
-            if (!Directory.Exists(_fileTempRootPath))
-            {
-                return;
-            }
-
             if (!File.Exists(_fileInfoTempPath))
             {
                 return;

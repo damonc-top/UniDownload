@@ -3,7 +3,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
-using UnityEditor.Localization.Plugins.XLIFF.V12;
 
 namespace UniDownload.UniDownloadCore
 {
@@ -44,13 +43,9 @@ namespace UniDownload.UniDownloadCore
         public void Start()
         {
             UniDownloadEventBus.DownloadTaskCompleted += OnTaskFinish;
-            if (_cancellationTokenSource.IsCancellationRequested)
-            {
-                _cancellationTokenSource.Dispose();
-                _cancellationTokenSource = new CancellationTokenSource();
-                _longTask = new Task(LongRunningTask, TaskCreationOptions.LongRunning);
-                _longTask.Start();
-            }
+            _cancellationTokenSource = new CancellationTokenSource();
+            _longTask = new Task(LongRunningTask, TaskCreationOptions.LongRunning);
+            _longTask.Start();
         }
         
         // 主线程调用
@@ -62,7 +57,7 @@ namespace UniDownload.UniDownloadCore
         public void Stop()
         {
             UniDownloadEventBus.DownloadTaskCompleted -= OnTaskFinish;
-            _cancellationTokenSource.Cancel();
+            _cancellationTokenSource.Dispose();
         }
 
         public void Dispose()

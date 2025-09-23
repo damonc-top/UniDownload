@@ -11,9 +11,11 @@ namespace UniDownload.UniDownloadCore
         private IDownloadContext _downloadContext;
         private string[] _segmentTempPaths;
         private UniDownloadSegment[] _fileSegmentThread;
+        private int _completeNum;
         
         public UniDownloadSegmentManager(IDownloadContext context)
         {
+            _completeNum = 0;
             _downloadContext = context;
             CreateSegments();
         }
@@ -38,7 +40,8 @@ namespace UniDownload.UniDownloadCore
         private void CreateSegments()
         {
             UniSegmentWorker worker = UniServiceContainer.Get<UniSegmentWorker>();
-            Result<string[]> segmentPaths = worker.GetSegmentPaths(_downloadContext.MaxParallel, _downloadContext.FileTempPath);
+            Result<string[]> segmentPaths = worker.GetSegmentPaths(
+                _downloadContext.MaxParallel, _downloadContext.FileTempPath);
             if (!segmentPaths.IsSuccess)
             {
                 return;
@@ -48,7 +51,7 @@ namespace UniDownload.UniDownloadCore
             _fileSegmentThread = new UniDownloadSegment[_downloadContext.SegmentRanges.GetLength(0)];
             for (int i = 0; i < _segmentTempPaths.Length; i++)
             {
-                _fileSegmentThread[i] = new UniDownloadSegment(i, _segmentTempPaths[i]);
+                _fileSegmentThread[i] = new UniDownloadSegment(i, _downloadContext.FileName);
             }
         }
 
@@ -79,9 +82,21 @@ namespace UniDownload.UniDownloadCore
                 OnSegmentFailed(args.RequestId, args.ErrorMessage);
                 return;
             }
-            
-            // TODO 成功发送
-            UniDownloadEventBus.RaiseDownloadTaskCompleted(_downloadContext.RequestId, _downloadContext.FileName, null);
+
+            Interlocked.Increment(ref _completeNum);
+            if (_completeNum >= _segmentTempPaths.Length)
+            {
+                UniSegmentWorker worker = UniServiceContainer.Get<UniSegmentWorker>();
+                var result = worker.MergeSegmentFiles(_downloadContext.FileName, _segmentTempPaths);
+                if (result.IsSuccess)
+                {
+                    UniDownloadEventBus.RaiseDownloadTaskCompleted(_downloadContext.RequestId, _downloadContext.FileName, null);
+                }
+                else
+                {
+                    // TODO 合并文件失败，需要重新下载
+                }
+            }
         }
 
         private void OnSegmentFailed(int segmentIndex, string errorMessage)
@@ -89,8 +104,7 @@ namespace UniDownload.UniDownloadCore
             UniLogger.Error(errorMessage);
             
             // TODO 失败次数达到上限抛出错误回调
-            UniDownloadEventBus.RaiseDownloadTaskCompleted(
-                _downloadContext.RequestId, _downloadContext.FileName, errorMessage);
+            UniDownloadEventBus.RaiseDownloadTaskCompleted(_downloadContext.RequestId, _downloadContext.FileName, errorMessage);
         }
     }
 }

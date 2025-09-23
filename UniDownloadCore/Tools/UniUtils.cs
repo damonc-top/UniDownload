@@ -92,6 +92,15 @@ namespace UniDownload.UniDownloadCore
             return UniServiceContainer.Get<UniDownloadSetting>().SegmentBuffSize;
         }
 
+        // 确保目录必须存在
+        public static void EnsureDirectoryExists(string path)
+        {
+            if (!Directory.Exists(path))
+            {
+                Directory.CreateDirectory(path);
+            }
+        }
+
         // 文件分段名字
         public static string GetSegmentName(int segmentIndex)
         {
