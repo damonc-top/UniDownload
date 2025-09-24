@@ -24,7 +24,7 @@ namespace UniDownload.UniDownloadCore
         private int _requestId;
         private string _fileName;
         private UniFileInfo _fileInfo;
-        private string _fileBaseRootPath;
+        private string _filePath;
         private string _fileTempRootPath;
         private string _fileInfoTempPath;
         private bool _successGetFileInfo;
@@ -32,8 +32,9 @@ namespace UniDownload.UniDownloadCore
 
         public int RequestId => _requestId;
         public string FileName => _fileName;
-        public string FileBasePath => _fileBaseRootPath;
-        public string FileTempPath => _fileTempRootPath;
+        public string MD5Hash => _md5;
+        public string FilePath => _filePath;//正式资源全路径
+        public string FileTempPath { get; private set; }//临时资源全路径
         public int MaxParallel { get; private set; }
         public int Progress { get; set; }
         public long TotalBytes { get; private set; }
@@ -47,16 +48,17 @@ namespace UniDownload.UniDownloadCore
             _requestId = requestId;
             _md5 = UniUtils.GetFileNameMD5(FileName);
             MaxParallel = UniUtils.GetSegmentParallel();
-            _fileInfoTempPath = Path.Combine(_fileTempRootPath, FileInfoName);
-            _fileBaseRootPath = Path.Combine(UniUtils.GetBaseSavePath(), _md5);
+            _filePath = Path.Combine(UniUtils.GetBaseSavePath(), FileName);
+            FileTempPath = Path.Combine(UniUtils.GetTempSavePath(), FileName);
             _fileTempRootPath = Path.Combine(UniUtils.GetTempSavePath(), _md5);
+            _fileInfoTempPath = Path.Combine(_fileTempRootPath, FileInfoName);
             _cancellation = new CancellationTokenSource(UniUtils.GetTimeOut());
         }
 
         // 开启装备下载上下文信息
         public void Start(Action<bool> prepareFinish)
         {
-            UniUtils.EnsureDirectoryExists(_fileBaseRootPath);
+            UniUtils.EnsureDirectoryExists(_filePath);
             UniUtils.EnsureDirectoryExists(_fileTempRootPath);
             ReadLocalInfo();
             if(_successGetFileInfo)
@@ -65,12 +67,12 @@ namespace UniDownload.UniDownloadCore
                 return;
             }
 
-            Task.Factory.StartNew(ReadRemoteFileInfoAsync, prepareFinish, _cancellation.Token,
-                TaskCreationOptions.None, UniServiceContainer.Get<UniTaskScheduler>());
+            Task.Factory.StartNew(ReadRemoteFileInfoAsync, prepareFinish, _cancellation.Token, TaskCreationOptions.None, UniServiceContainer.Get<UniTaskScheduler>());
         }
 
-        public void Stop()
+        public void StopAsync()
         {
+            // 停止下载 写入断点信息
             _cancellation.Cancel();
         }
 

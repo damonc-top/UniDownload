@@ -52,11 +52,11 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 暂停下载，向下传递暂定处理自己的暂停逻辑
-        public void Stop()
+        public void StopAsync()
         {
             _state = UniDownloadState.Stopped;
-            _downloadContext?.Stop();
-            _segmentManager?.Stop();
+            _downloadContext?.StopAsync();
+            _segmentManager?.StopAsync();
         }
 
         // 准备下载上下文数据，从本地断点文件还原分段数据，如果没有从远程文件获取创建分段数据

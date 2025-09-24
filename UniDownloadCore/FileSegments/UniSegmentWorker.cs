@@ -55,7 +55,7 @@ namespace UniDownload.UniDownloadCore
         }
         
         // 获取分段文件写入流，设置断点续传
-        public Result<Stream[]> GetSegmentStream(string[] segmentPaths, IDownloadContext context)
+        public Result<Stream[]> GetSegmentStreams(string[] segmentPaths, IDownloadContext context)
         {
             long[] downloaded = context.SegmentDownloaded;
             if (segmentPaths.Length != downloaded.GetLength(0))
@@ -65,49 +65,78 @@ namespace UniDownload.UniDownloadCore
             Stream[] writeSegmentStreams = new Stream[segmentPaths.Length];
             for (int i = 0; i < segmentPaths.Length; i++)
             {
-                FileStream stream = new FileStream(segmentPaths[i], FileMode.OpenOrCreate, FileAccess.ReadWrite);
-                stream.Seek(downloaded[i], SeekOrigin.Begin);
-                writeSegmentStreams[i] = stream;
+                var result = GetSegmentStream(segmentPaths[i], downloaded[i]);
+                writeSegmentStreams[i] = result.Value;
             }
 
             return Result<Stream[]>.Success(writeSegmentStreams);
         }
 
-        // 分段文件合并
-        public Result<bool> MergeSegmentFiles(string fileName, string[] segmentPaths)
+        public Result<Stream> GetSegmentStream(string segmentPath, long downloaded)
+        {
+            Stream stream = new FileStream(segmentPath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+            stream.Seek(downloaded, SeekOrigin.Begin);
+            return Result<Stream>.Success(stream);
+            
+        }
+
+        /// <summary>
+        /// 分段文件合并
+        /// </summary>
+        /// <param name="context">下载上下文</param>
+        /// <param name="segmentPaths">分段文件路径</param>
+        /// <returns>是否成功</returns>
+        public Result<bool> MergeSegmentFiles(IDownloadContext context, string[] segmentPaths)
         {
             int length = segmentPaths.Length;
-            string targetFile = Path.Combine(UniUtils.GetBaseSavePath(), fileName);
+
             if (length == 1)
             {
-                File.Move(segmentPaths[0], targetFile);
+                var md5Result = new UniMD5().VerifyMD5Hash(context.MD5Hash, segmentPaths[0]);
+                if (!md5Result.IsSuccess)
+                {
+                    return Result<bool>.Fail(md5Result.Message);
+                }
+                MoveFile(segmentPaths[0], context.FilePath);
                 CleanupFiles(segmentPaths);
                 return Result<bool>.Success(true);
             }
 
             try
             {
-                using FileStream final = new FileStream(targetFile, FileMode.Create, FileAccess.Write);
-                byte[] buff = new  byte[1024];
+                using FileStream final = new FileStream(context.FileTempPath, FileMode.Create, FileAccess.Write);
+                byte[] buff = new byte[1024];
                 for (int i = 0; i < length; i++)
                 {
                     int readBytes;
                     using FileStream segment = new FileStream(segmentPaths[i], FileMode.Open, FileAccess.Read);
-                    do
+                    while ((readBytes = segment.Read(buff, 0, buff.Length)) > 0)
                     {
-                        readBytes = segment.Read(buff, 0, buff.Length);
                         final.Write(buff, 0, readBytes);
-                    } while (readBytes > 0);
+                    }
                 }
+
                 final.Flush();
                 final.Close();
+                var md5Result = new UniMD5().VerifyMD5Hash(context.MD5Hash, context.FileTempPath);
+                if (!md5Result.IsSuccess)
+                {
+                    return Result<bool>.Fail(md5Result.Message);
+                }
+
+                MoveFile(context.FileTempPath, context.FilePath);
                 CleanupFiles(segmentPaths);
                 return Result<bool>.Success(true);
             }
             catch (Exception e)
             {
-                return Result<bool>.Fail($"{fileName} 合并文件失败 {e.Message}");
+                return Result<bool>.Fail($"{context.FileTempPath} 合并文件失败 {e.Message}");
             }
+        }
+
+        public void MoveFile(string src, string dst)
+        {
+            File.Move(src, dst);
         }
 
         // 清理下载的缓存文件

@@ -162,11 +162,14 @@ namespace UniDownload.UniDownloadCore
             UniDownloadEventBus.RaiseSegmentCompleted(_segmentIndex, errorMessage);
         }
 
-        private void Dispose()
+        public void Dispose()
         {
             _writeStream.Close();
             _readStream.Flush();
             _readStream.Close();
+            _isDownloading = false;
+            _scheduler = null;
+            Buffer = null;
         }
     }
 }

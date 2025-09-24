@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace UniDownload.UniDownloadCore
 {
     internal static class UniUtils
     {
+        private static HashSet<string> _directories = new HashSet<string>();
+        private static object _lock = new object();
         // 获取源站URL
         public static string GetBaseURL()
         {
@@ -95,9 +98,26 @@ namespace UniDownload.UniDownloadCore
         // 确保目录必须存在
         public static void EnsureDirectoryExists(string path)
         {
-            if (!Directory.Exists(path))
+            string directory = Path.GetDirectoryName(path);
+            if (string.IsNullOrEmpty(directory))
+                return;
+            
+            // 锁外检查快速跳过已存在目录避免进入锁
+            if (!_directories.Contains(directory))
+                return;
+            
+            lock (_lock)
             {
-                Directory.CreateDirectory(path);
+                // 锁内检查防止创建多次
+                if (!_directories.Contains(directory))
+                    return;
+
+                if (!Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                _directories.Add(directory);
             }
         }
 

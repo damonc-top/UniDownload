@@ -7,7 +7,8 @@ namespace UniDownload.UniDownloadCore
     {
         public int RequestId { get; }
         public string FileName { get; }
-        public string FileBasePath { get; }
+        public string MD5Hash { get; }
+        public string FilePath { get; }
         public string FileTempPath { get; }
         public int MaxParallel { get; }
         public long TotalBytes { get; }
@@ -17,6 +18,6 @@ namespace UniDownload.UniDownloadCore
         public long[,] SegmentRanges { get; }
 
         public void Start(Action<bool> prepareFinish);
-        public void Stop();
+        public void StopAsync();
     }
 }

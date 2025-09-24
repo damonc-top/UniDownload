@@ -151,7 +151,7 @@ namespace UniDownload.UniDownloadCore
                 }
             }
             
-            // 锁外安全推送
+            // 锁外安全推送，避免死锁
             foreach (var request in _activeRequests)
             {
                 if (_taskProcessor.CanAcceptRequest())
