@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace UniDownload.UniDownloadCore
@@ -14,18 +15,22 @@ namespace UniDownload.UniDownloadCore
             {
                 return Result<long[,]>.Fail($"文件分割错误， size={fileLength} maxParallel={maxParallel}");
             }
-            
+            // 基准分割size
             long standardSize = UniServiceContainer.Get<UniDownloadSetting>().SegmentSize;
+            // 基准分割数
             int segmentNum = (int)Math.Ceiling((double)fileLength / standardSize);
-            int parallel = Math.Min(segmentNum, maxParallel);
-            long segmentSize = fileLength / parallel;
-            long remainSize = fileLength % parallel;
-            long[,] segmentPosition = new long[parallel, 2];
+            // 比较基准分割数和给定并发数，取最小数值并发
+            int newParallel = Math.Min(segmentNum, maxParallel);
+            // 重新计算分割size
+            long segmentSize = fileLength / newParallel;
+            // 剩余尾部一点size，合并给最后一个分割文件
+            long remainSize = fileLength % newParallel;
+            long[,] segmentPosition = new long[newParallel, 2];
             long startPos = 0;
-            for (int i = 0; i < parallel; i++)
+            for (int i = 0; i < newParallel; i++)
             {
                 long endPos = startPos + segmentSize - 1;
-                if (i == parallel - 1)
+                if (i == newParallel - 1)
                 {
                     endPos += remainSize;
                 }
@@ -40,24 +45,25 @@ namespace UniDownload.UniDownloadCore
         }
 
         // 获取文件分段路径，eg.临时保存路径/分段名.bin
-        public Result<string[]> GetSegmentPaths(int parallel, string target)
+        public Result<string[]> GetSegmentPaths(IDownloadContext context)
         {
-            if (parallel < 1 || string.IsNullOrEmpty(target))
+            List<string> segmentPaths = new List<string>();
+            foreach (UniSegmentFile segmentFile in context.SegmentFiles)
             {
-                return Result<string[]>.Fail($"获取文件分段路径失败");
+                if (!segmentFile.IsDone)
+                {
+                    segmentPaths.Add(Path.Combine(context.FileTempRootPath, segmentFile.SegName));
+                }
             }
-            string[] segmentPaths = new string[parallel];
-            for (int i = 0; i < parallel; i++)
-            {
-                segmentPaths[i] = Path.Combine(target, UniUtils.GetSegmentName(i));
-            }
-            return Result<string[]>.Success(segmentPaths);
+            
+            return Result<string[]>.Success(segmentPaths.ToArray());
         }
         
         // 获取分段文件写入流，设置断点续传
         public Result<Stream[]> GetSegmentStreams(string[] segmentPaths, IDownloadContext context)
         {
-            long[] downloaded = context.SegmentDownloaded;
+            // TODO da
+            long[] downloaded = new long[1];//context.SegmentDownloaded;
             if (segmentPaths.Length != downloaded.GetLength(0))
             {
                 return Result<Stream[]>.Fail($"获取分段文件写入流失败：路径数组与已下载数组的长度不一致");

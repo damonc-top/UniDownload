@@ -11,7 +11,6 @@ namespace UniDownload.UniDownloadCore
     {
         private CancellationTokenSource _cancellation;
         private IDownloadContext _context;
-        private string[] _segmentTempPaths;
         private UniDownloadSegment[] _fileSegmentThread;
         private int _completeNum;
         private int _maxRetry;
@@ -91,20 +90,12 @@ namespace UniDownload.UniDownloadCore
         private void CreateSegments()
         {
             _maxRetry = _context.MaxParallel;
-            _retryNums = new int[_context.MaxParallel]; 
-            UniSegmentWorker worker = UniServiceContainer.Get<UniSegmentWorker>();
-            Result<string[]> segmentPaths = worker.GetSegmentPaths(
-                _context.MaxParallel, _context.FileTempPath);
-            if (!segmentPaths.IsSuccess)
+            _retryNums = new int[_context.MaxParallel];
+            int count = _context.SegmentFiles.Length;
+            _fileSegmentThread = new UniDownloadSegment[count];
+            for (int i = 0; i < count; i++)
             {
-                return;
-            }
-
-            _segmentTempPaths = segmentPaths.Value;
-            _fileSegmentThread = new UniDownloadSegment[_context.SegmentRanges.GetLength(0)];
-            for (int i = 0; i < _segmentTempPaths.Length; i++)
-            {
-                _fileSegmentThread[i] = new UniDownloadSegment(i, _context.FileName);
+                _fileSegmentThread[i] = new UniDownloadSegment(_context.FileName, _context.SegmentFiles[i]);
             }
         }
 
@@ -122,20 +113,23 @@ namespace UniDownload.UniDownloadCore
             Stream[] writeStreams = segmentStreams.Value;
             for (int i = 0; i < writeStreams.Length; i++)
             {
-                _fileSegmentThread[i].Start(writeStreams[i], _context.SegmentDownloaded[i],
-                    _context.SegmentRanges[i, 1], _cancellation.Token);
+                // TODO 1
+                _fileSegmentThread[i].Start(writeStreams[i], 0, _context.SegmentRanges[i, 1], _cancellation.Token);
             }
         }
 
+        // 分段文件下载回调
         private void OnSegmentComplete(object sender, UniDownloadEventArgs args)
         {
             if (args.RequestId != _context.RequestId) return;
             if (args.ErrorMessage != null)
             {
+                // 分段文件下载有错误信息处理
                 OnSegmentFailed(args.RequestId, args.ErrorMessage);
                 return;
             }
 
+            // 任意一个分段文件重试次数达到上限，判定该文件下载失败
             Interlocked.Increment(ref _completeNum);
             if (_completeNum >= _segmentTempPaths.Length)
             {

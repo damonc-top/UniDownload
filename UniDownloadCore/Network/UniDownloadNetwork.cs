@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -14,14 +15,15 @@ namespace UniDownload.UniDownloadCore
 
         public UniDownloadNetwork()
         {
-            _client = new HttpClient(new HttpClientHandler()
+            HttpClientHandler handler = new HttpClientHandler()
             {
+                ClientCertificateOptions = ClientCertificateOption.Manual,
                 UseCookies = false,
-            })
+            };
+            _client = new HttpClient(handler)
             {
                 Timeout = TimeSpan.FromMilliseconds(UniUtils.GetTimeOut()),
                 BaseAddress = new Uri(UniUtils.GetBaseURL()),
-                MaxResponseContentBufferSize = 1024 * 1024
             };
         }
 
@@ -44,15 +46,18 @@ namespace UniDownload.UniDownloadCore
                 }
                 catch (OperationCanceledException e)
                 {
-                    throw;
+                    // 取消操作转换为失败Result
+                    return Result<long>.Fail($"获取文件长度被取消: {context.FileName}");
                 }
                 catch (HttpRequestException e)
                 {
-                    throw;
+                    // HTTP异常转换为失败Result
+                    return Result<long>.Fail($"获取文件长度网络失败: {context.FileName}, {e.Message}");
                 }
                 catch (Exception e)
                 {
-                    throw;
+                    // 其他异常转换为失败Result
+                    return Result<long>.Fail($"获取文件长度其他异常: {context.FileName}, {e.Message}");
                 }
             }
         }

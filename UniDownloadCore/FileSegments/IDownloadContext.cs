@@ -10,13 +10,13 @@ namespace UniDownload.UniDownloadCore
         public string MD5Hash { get; }
         public string FilePath { get; }
         public string FileTempPath { get; }
+        public string FileTempRootPath { get; }
         public int MaxParallel { get; }
         public long TotalBytes { get; }
         public long BytesReceived { get;}
         public int Progress { get; }
-        public long[] SegmentDownloaded { get;}
         public long[,] SegmentRanges { get; }
-
+        public UniSegmentFile[] SegmentFiles { get; }
         public void Start(Action<bool> prepareFinish);
         public void StopAsync();
     }

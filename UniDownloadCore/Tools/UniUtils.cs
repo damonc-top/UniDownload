@@ -67,22 +67,6 @@ namespace UniDownload.UniDownloadCore
 #endif
         }
         
-        // 序列化到字节数组
-        public static byte[] SerializeUniFileInfo(UniFileInfo info)
-        {
-            // TODO 复杂的自定义二进制序列化，这里用简化版JSON
-            string value = UnityEngine.JsonUtility.ToJson(info);
-            return System.Text.Encoding.UTF8.GetBytes(value);
-        }
-        
-        // 从字节数组反序列化文件信息
-        public static UniFileInfo DeserializeUniFileInfo(byte[] data)
-        {
-            // TODO 复杂的自定义二进制反序列化，这里用简化版JSON
-            string json = System.Text.Encoding.UTF8.GetString(data);
-            return UnityEngine.JsonUtility.FromJson<UniFileInfo>(json);
-        }
-        
         // 文件分段最大的并发数
         public static int GetSegmentParallel()
         {

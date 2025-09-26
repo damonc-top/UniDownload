@@ -6,12 +6,13 @@ namespace UniDownload.UniDownloadCore
     // 用户接口，开启、下载任务
     internal class UniDownloadTask
     {
+        private string _md5 = null;
+        // 下载任务状态
+        private UniDownloadState _state;
         // 下载上下文接口
         private IDownloadContext _downloadContext;
         // 分段下载层分段管理器对象
         private UniDownloadSegmentManager _segmentManager;
-        // 下载任务状态
-        private UniDownloadState _state;
 
         public int RequestId { get; private set; }
         public string FileName { get; private set; }
@@ -38,6 +39,17 @@ namespace UniDownload.UniDownloadCore
 
         public UniDownloadTask(string fileName, int requestId)
         {
+            Initialize(fileName, requestId);
+        }
+
+        public UniDownloadTask(string fileName, int requestId, string md5)
+        {
+            _md5 = md5;
+            Initialize(fileName, requestId);
+        }
+
+        private void Initialize(string fileName, int requestId)
+        {
             _state = UniDownloadState.Prepare;
             FileName = fileName;
             RequestId = requestId;
@@ -47,7 +59,7 @@ namespace UniDownload.UniDownloadCore
         public void Start()
         {
             _state = UniDownloadState.Querying;
-            _downloadContext = new UniDownloadContext(FileName, RequestId);
+            _downloadContext = new UniDownloadContext(FileName, RequestId, _md5);
             _downloadContext.Start(PrepareDownloadContext);
         }
 
@@ -76,6 +88,11 @@ namespace UniDownload.UniDownloadCore
         public void OnTaskCompleted()
         {
             _state = UniDownloadState.Finished;
+        }
+
+        public void OnTaskStopped()
+        {
+            _state = UniDownloadState.Stopped;
         }
 
         public void OnTaskFailed()

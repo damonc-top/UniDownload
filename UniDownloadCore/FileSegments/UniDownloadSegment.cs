@@ -9,35 +9,28 @@ namespace UniDownload.UniDownloadCore
     {
         private int BuffSize;
         private byte[] Buffer;
-        private int _byteReceived;
         private string _fileName;
-        private int _segmentIndex;
+        private UniSegmentFile _fileSegment;
         private Stream _readStream;
         private Stream _writeStream;
-        private long _startRange;
-        private long _endRange;
         private bool _isDownloading;
         private CancellationToken _token;
         private UniTaskScheduler _scheduler;
         
-        public UniDownloadSegment(int segmentIndex, string fileName)
+        public UniDownloadSegment(string fileName, UniSegmentFile fileSegment)
         {
+            _fileName = fileName;
+            _fileSegment = fileSegment;
             _isDownloading = false;
             BuffSize = UniUtils.GetSegmentBuffSize();
             Buffer = new byte[BuffSize];
             _scheduler = UniServiceContainer.Get<UniTaskScheduler>();
-            _segmentIndex = segmentIndex;
-            _fileName = fileName;
         }
 
-        public void Start(Stream writeStream, long startRange, long endRange, CancellationToken token)
+        public void Start(CancellationToken token)
         {
             _isDownloading = true;
-            _byteReceived = 0;
             _token = token;
-            _writeStream = writeStream;
-            _startRange = startRange;
-            _endRange = endRange;
             Task.Factory.StartNew(DownloadSegments, token, TaskCreationOptions.None, _scheduler);
         }
 
@@ -46,12 +39,20 @@ namespace UniDownload.UniDownloadCore
         {
             try
             {
+                if (_fileSegment.IsDone)
+                {
+                    OnDownloadCompleted();
+                    return;
+                }
+                
                 UniDownloadNetwork network = UniServiceContainer.Get<UniDownloadNetwork>();
-                var result = await network.GetResponseStream(_fileName, _startRange, _endRange, _token);
+                long startRange = _fileSegment.GetStartRange();
+                long endRange = _fileSegment.EndRange;
+                var result = await network.GetResponseStream(_fileName, startRange, endRange, _token);
                 if (!result.IsSuccess)
                 {
                     UniLogger.Error(result.Message);
-                    OnDownloadFailed($"下载文件{_fileName}第{_segmentIndex}段网络异常失败");
+                    OnDownloadFailed($"下载文件{_fileName}第{_fileSegment.SegIndex}段网络异常失败");
                     return;
                 }
 
@@ -60,11 +61,11 @@ namespace UniDownload.UniDownloadCore
             }
             catch (OperationCanceledException e)
             {
-                OnDownloadFailed($"下载文件{_fileName}第{_segmentIndex}段被取消异常，error：{e.Message}");
+                OnDownloadFailed($"下载文件{_fileName}第{_fileSegment.SegIndex}段被取消异常，error：{e.Message}");
             }
             catch (Exception e)
             {
-                OnDownloadFailed($"下载文件{_fileName}第{_segmentIndex}段其他异常，error：{e.Message}");
+                OnDownloadFailed($"下载文件{_fileName}第{_fileSegment.SegIndex}段其他异常，error：{e.Message}");
             }
         }
 
@@ -85,7 +86,7 @@ namespace UniDownload.UniDownloadCore
             catch (Exception e)
             {
                 _isDownloading = false;
-                OnDownloadFailed($"{_fileName} {_segmentIndex} 读取流失败, error: {e.Message}");
+                OnDownloadFailed($"{_fileName} {_fileSegment.SegIndex} 读取流失败, error: {e.Message}");
             }
         }
         
@@ -106,14 +107,14 @@ namespace UniDownload.UniDownloadCore
                     return;
                 }
 
-                _byteReceived += bytesRead;
+                _fileSegment.Donwloaded += bytesRead;
                 // 开始写入
                 _writeStream.BeginWrite(Buffer, 0, bytesRead, OnWriteComplete, null);
             }
             catch (Exception e)
             {
                 _isDownloading = false;
-                OnDownloadFailed($"{_fileName} {_segmentIndex} 读取流失败, error: {e.Message}");
+                OnDownloadFailed($"{_fileName} {_fileSegment.SegIndex} 读取流失败, error: {e.Message}");
             }
         }
 
@@ -136,7 +137,7 @@ namespace UniDownload.UniDownloadCore
             catch (Exception e)
             {
                 _isDownloading = false;
-                OnDownloadFailed($"{_fileName} {_segmentIndex} 写入流失败, error: {e.Message}");
+                OnDownloadFailed($"{_fileName} {_fileSegment.SegIndex} 写入流失败, error: {e.Message}");
             }
         }
 
@@ -152,14 +153,12 @@ namespace UniDownload.UniDownloadCore
 
         private void OnDownloadCompleted()
         {
-            Dispose();
-            UniDownloadEventBus.RaiseSegmentCompleted(_segmentIndex, null);
+            UniDownloadEventBus.RaiseSegmentCompleted(_fileSegment.SegIndex, null);
         }
 
         private void OnDownloadFailed(string errorMessage)
         {
-            Dispose();
-            UniDownloadEventBus.RaiseSegmentCompleted(_segmentIndex, errorMessage);
+            UniDownloadEventBus.RaiseSegmentCompleted(_fileSegment.SegIndex, errorMessage);
         }
 
         public void Dispose()
